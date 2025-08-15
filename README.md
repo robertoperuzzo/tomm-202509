@@ -383,7 +383,9 @@ User Query → Embedding Manager → Semantic Search ← Typesense
 
 ## License
 
-This implementation is provided as a demo. Please ensure compliance with the licenses of all dependencies:
+This project is licensed under the MIT License. See the `LICENSE` file for details.
+
+Please ensure compliance with the licenses of all dependencies:
 - Typesense: Apache 2.0
 - Cheshire Cat AI: MIT
 - Sentence Transformers: Apache 2.0
