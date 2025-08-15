@@ -1,0 +1,43 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.cache/
+
+# Environments
+.venv/
+venv/
+env/
+.env
+.python-version
+
+# IDEs / Editors
+.vscode/
+.idea/
+*.iml
+.history/
+
+# Project data/artifacts
+pdfs/
+typesense-data/
+static/
+plugins/
+data/
+chunk_experiment_results.json
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Logs
+*.log
