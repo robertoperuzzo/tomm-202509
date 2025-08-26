@@ -55,6 +55,22 @@
     }
   },
 
+  "forwardPorts": [8108, 8000, 3000],
+  "portsAttributes": {
+    "8108": {
+      "label": "Typesense",
+      "requireLocalPort": true
+    },
+    "8000": {
+      "label": "Backend API",
+      "requireLocalPort": true
+    },
+    "3000": {
+      "label": "Frontend",
+      "requireLocalPort": true
+    }
+  },
+
   "remoteUser": "vscode",
   "postCreateCommand": "bash .devcontainer/post-create.sh"
 }
