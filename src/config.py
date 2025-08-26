@@ -1,54 +1,7 @@
-#!/bin/bash
-
-# Post-create script for the development container
-echo "Running post-create setup..."
-
-# Create project directory structure
-mkdir -p data/{raw,processed,chunks}
-mkdir -p src/{preprocessing,chunking,indexing,evaluation}
-mkdir -p tests
-mkdir -p frontend
-mkdir -p backend
-mkdir -p logs
-
-# Create .env file for environment variables
-cat > .env << EOF
-# Typesense configuration
-TYPESENSE_HOST=typesense
-TYPESENSE_PORT=8108
-TYPESENSE_PROTOCOL=http
-TYPESENSE_API_KEY=xyz
-
-# Application configuration
-BACKEND_HOST=0.0.0.0
-BACKEND_PORT=8000
-FRONTEND_PORT=3000
-
-# Data paths
-DATA_RAW_PATH=./data/raw
-DATA_PROCESSED_PATH=./data/processed
-DATA_CHUNKS_PATH=./data/chunks
-
-# Chunking configuration
-CHUNK_SIZE_TOKENS=512
-CHUNK_OVERLAP=50
-SEMANTIC_THRESHOLD=0.7
-EOF
-
-# Create initial Python package structure
-touch src/__init__.py
-touch src/preprocessing/__init__.py
-touch src/chunking/__init__.py
-touch src/indexing/__init__.py
-touch src/evaluation/__init__.py
-
-# Create initial configuration files
-cat > src/config.py << 'EOF'
 """Configuration settings for the chunking strategies demo."""
 
 import os
 from pathlib import Path
-from typing import Dict, Any
 
 # Base paths
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -104,19 +57,3 @@ COLLECTION_SCHEMA = {
         {"name": "created_at", "type": "int64"},
     ]
 }
-EOF
-
-echo "✅ Post-create setup completed successfully!"
-echo ""
-echo "📁 Created directory structure:"
-echo "   - data/{raw,processed,chunks}"
-echo "   - src/{preprocessing,chunking,indexing,evaluation}"
-echo "   - tests, frontend, backend, logs"
-echo ""
-echo "⚙️  Created configuration files:"
-echo "   - .env (environment variables)"
-echo "   - src/config.py (application configuration)"
-echo ""
-echo "🐍 Python dependencies installed"
-echo ""
-echo "🚀 Development environment is ready!"

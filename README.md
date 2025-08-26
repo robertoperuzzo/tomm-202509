@@ -5,12 +5,14 @@ This project demonstrates various chunking strategies for improving vector index
 ## 🚀 Getting Started
 
 ### Prerequisites
+
 - [VS Code](https://code.visualstudio.com/) with [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
 - [Docker](https://www.docker.com/get-started) and [Docker Compose](https://docs.docker.com/compose/install/)
 
 ### Setup Development Environment
 
 1. **Open in Dev Container**:
+
    ```bash
    # Clone the repository (if not already done)
    git clone <repository-url>
@@ -21,18 +23,21 @@ This project demonstrates various chunking strategies for improving vector index
    ```
 
 2. **Launch Dev Container**:
+
    - VS Code will detect the `.devcontainer` configuration
    - Click "Reopen in Container" when prompted
    - Or use Command Palette: `Dev Containers: Reopen in Container`
 
 3. **Start Services**:
-   ```bash
+
+   ````bash
    # Start Typesense service
    docker compose up -d typesense
-   
+
    # Check if Typesense is running
    curl http://localhost:8108/health
    ```### Project Structure
+   ````
 
 ```
 ├── .devcontainer/          # VS Code Dev Container configuration
@@ -49,33 +54,37 @@ This project demonstrates various chunking strategies for improving vector index
 │   ├── indexing/         # Typesense indexing utilities
 │   ├── evaluation/       # Evaluation and metrics
 │   └── config.py         # Configuration settings
-├── notebooks/            # Future: notebooks for experimentation (if needed)
 ├── tests/               # Unit tests
 ├── frontend/            # HTML/CSS/JavaScript with InstantSearch.js
 ├── backend/            # FastAPI backend (to be created)
-└── compose.yaml        # Service orchestration
+└── docker-compose.yml   # Service orchestration
 ```
 
 ## 🧪 Development Workflow
 
 ### 1. Data Preparation
+
 - Download ArXiv papers to `data/raw/`
 - Run preprocessing scripts to extract text and metadata
 - Store processed data in `data/processed/`
 
 ### 2. Chunking Strategies
+
 Implement and test different chunking approaches:
+
 - **Fixed-size blocks**: Token-aware splitting using LangChain's `TokenTextSplitter`
 - **Sliding windows (LangChain)**: Document-structure aware splitting with `RecursiveCharacterTextSplitter`
 - **Sliding windows (Unstructured)**: Element-based chunking with custom overlap
 - **Semantic chunking**: Natural breakpoint identification using `SemanticChunker`
 
 ### 3. Indexing and Search
+
 - Create separate Typesense collections for each strategy
 - Index chunks with metadata and search capabilities
 - Implement comparison queries across strategies
 
 ### 4. Evaluation
+
 - Define test query sets for different search scenarios
 - Measure relevance scores, search speed, and chunk quality
 - Generate comparative analysis reports
@@ -83,12 +92,14 @@ Implement and test different chunking approaches:
 ## 🛠️ Available Tools and Libraries
 
 ### Python Dependencies
+
 - **Unstructured**: PDF processing and element-based chunking
 - **LangChain**: Text splitters and semantic chunking (includes tokenization)
 - **Typesense**: Vector indexing and search engine
 - **FastAPI**: Backend API framework
 
 ### Development Tools
+
 - **Black**: Code formatting
 - **Flake8/Pylint**: Code linting
 - **pytest**: Testing framework
@@ -105,21 +116,25 @@ Implement and test different chunking approaches:
 ## 📊 Services
 
 ### Typesense Search Engine
+
 - **URL**: http://localhost:8108
 - **API Key**: `xyz` (development only)
 - **Health Check**: `curl http://localhost:8108/health`
 
 ### Backend API (Future)
+
 - **URL**: http://localhost:8000
 - **Framework**: FastAPI with automatic OpenAPI docs
 
 ### Frontend (Future)
+
 - **URL**: http://localhost:3000
 - **Framework**: Plain HTML/CSS/JavaScript with InstantSearch.js
 
 ## 🐛 Troubleshooting
 
 ### Container Issues
+
 ```bash
 # Rebuild dev container
 # Command Palette: "Dev Containers: Rebuild Container"
@@ -133,6 +148,7 @@ docker system prune -f
 ```
 
 ### Typesense Issues
+
 ```bash
 # Check Typesense status
 docker compose logs typesense
@@ -144,6 +160,7 @@ docker compose up -d typesense
 ```
 
 ### Python Dependencies
+
 ```bash
 # Reinstall dependencies
 pip install -r requirements.txt

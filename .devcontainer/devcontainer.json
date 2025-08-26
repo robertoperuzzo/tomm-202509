@@ -1,6 +1,6 @@
 {
   "name": "Chunking Strategies Demo",
-  "dockerComposeFile": "../compose.yaml",
+  "dockerComposeFile": "../docker-compose.yml",
   "service": "dev",
   "workspaceFolder": "/workspace",
   "shutdownAction": "stopCompose",
@@ -16,7 +16,7 @@
       "userGid": "automatic"
     },
     "ghcr.io/devcontainers/features/python:1": {
-      "version": "3.11",
+      "version": "3.13",
       "installTools": true,
       "optimize": true
     },
