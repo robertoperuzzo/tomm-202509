@@ -28,6 +28,17 @@ services:
     networks:
       - chunking-demo
 
+  # Typesense Dashboard
+  typesensedashboard:
+    image: ghcr.io/bfritscher/typesense-dashboard:latest
+    restart: on-failure
+    ports:
+      - "8110:80"
+    depends_on:
+      - typesense
+    networks:
+      - chunking-demo
+
   # Backend API (will be used later)
   backend:
     build:

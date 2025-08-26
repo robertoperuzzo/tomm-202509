@@ -55,10 +55,14 @@
     }
   },
 
-  "forwardPorts": [8108, 8000, 3000],
+  "forwardPorts": [8108, 8110, 8000, 3000],
   "portsAttributes": {
     "8108": {
       "label": "Typesense",
+      "requireLocalPort": true
+    },
+    "8110": {
+      "label": "Typesense Dashboard",
       "requireLocalPort": true
     },
     "8000": {
