@@ -3,10 +3,6 @@
 # Post-create script for the development container
 echo "Running post-create setup..."
 
-# Install Python dependencies if not already installed
-pip install --user --upgrade pip
-pip install --user -r requirements.txt
-
 # Create project directory structure
 mkdir -p data/{raw,processed,chunks}
 mkdir -p src/{preprocessing,chunking,indexing,evaluation}
