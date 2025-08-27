@@ -63,7 +63,7 @@ pdfs/
 typesense-data/
 static/
 plugins/
-data/
+/data/
 chunk_experiment_results.json
 
 # Logs

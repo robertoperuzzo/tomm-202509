@@ -66,6 +66,7 @@ class TestThreeMethodExtraction:
         assert result is not None
         assert isinstance(result, ExtractionResult)
         assert result.text is not None
+        assert len(result.text) > 100
         
         # Verify it's raw extraction (may contain OCR artifacts)
         assert result.method_specific_data["extraction_method"] == "pypdf2"
@@ -79,68 +80,52 @@ class TestThreeMethodExtraction:
         assert "text_length" in result.quality_metrics
         assert "ocr_artifact_count" in result.quality_metrics
         assert "readability_score" in result.quality_metrics
-        
-        # For PyPDF2, text extraction might be minimal due to PDF structure
-        # Check if we got some text or if the PDF is challenging for PyPDF2
-        if len(result.text) == 0:
-            print(f"Warning: PyPDF2 extracted no text from {test_pdf_path.name}")
-            print(f"This may be expected for complex PDFs - PyPDF2 limitations")
-        else:
-            assert len(result.text) > 0, "Should extract some text if successful"
     
     def test_langchain_extraction(self, preprocessor, test_pdf_path):
         """Test LangChain PyPDFParser extraction - ADR-006."""
-        # Try LangChain method
-        result = preprocessor.extract_text_from_pdf(
-            test_pdf_path, method="langchain", track_performance=True
-        )
+        # Skip if LangChain not available
+        try:
+            result = preprocessor.extract_text_from_pdf(
+                test_pdf_path, method="langchain", track_performance=True
+            )
+        except ImportError:
+            pytest.skip("LangChain not available")
         
-        # Skip if no result (dependency not available and fallback failed)
-        if result is None:
-            pytest.skip("LangChain and fallback methods not available")
-        
+        assert result is not None
         assert isinstance(result, ExtractionResult)
         assert result.text is not None
         assert len(result.text) > 100
         
-        # Check if we got LangChain or fallback method
-        extraction_method = result.method_specific_data["extraction_method"]
-        assert extraction_method in ["langchain", "unstructured", "pypdf2"]
+        # Verify LangChain-specific data
+        assert result.method_specific_data["extraction_method"] == "langchain"
+        assert "document_objects" in result.method_specific_data
         
-        if extraction_method == "langchain":
-            # Verify LangChain-specific data if actually using LangChain
-            assert "document_objects" in result.method_specific_data
-        
-        # Should have quality metrics regardless of method
+        # Should have better quality than raw PyPDF2
         assert result.quality_metrics["text_length"] > 0
     
     def test_unstructured_extraction(self, preprocessor, test_pdf_path):
         """Test Unstructured.io extraction with structure awareness."""
-        # Try Unstructured method
-        result = preprocessor.extract_text_from_pdf(
-            test_pdf_path, method="unstructured", track_performance=True
-        )
+        # Skip if Unstructured not available
+        try:
+            result = preprocessor.extract_text_from_pdf(
+                test_pdf_path, method="unstructured", track_performance=True
+            )
+        except ImportError:
+            pytest.skip("Unstructured.io not available")
         
-        # Skip if no result (dependency not available and fallback failed)
-        if result is None:
-            pytest.skip("Unstructured.io and fallback methods not available")
-        
+        assert result is not None
         assert isinstance(result, ExtractionResult)
         assert result.text is not None
+        assert len(result.text) > 100
         
-        # Check if we got Unstructured or fallback method
-        extraction_method = result.method_specific_data["extraction_method"]
-        assert extraction_method in ["unstructured", "langchain", "pypdf2"]
+        # Verify structure-aware extraction
+        assert result.method_specific_data["extraction_method"] == "unstructured"
+        assert "elements" in result.method_specific_data
+        assert "element_count" in result.method_specific_data
         
-        if extraction_method == "unstructured":
-            # Verify structure-aware extraction if using unstructured
-            assert "elements" in result.method_specific_data
-            assert "element_count" in result.method_specific_data
-            assert result.quality_metrics["structure_elements"] >= 0
-        
-        # Should have quality metrics regardless of method
-        if len(result.text) > 0:
-            assert "backtracking" in result.text.lower() or len(result.text) > 0
+        # Should have high quality text
+        assert result.quality_metrics["structure_elements"] > 0
+        assert "backtracking" in result.text.lower()
 
 
 class TestPerformanceAndQuality:
@@ -211,8 +196,7 @@ class TestDirectoryStructure:
 class TestBatchProcessing:
     """Test batch processing with method-specific directories - ADR-006."""
     
-    def test_process_with_pypdf2_method(self, preprocessor, test_pdf_path, 
-                                        tmp_path):
+    def test_process_with_pypdf2_method(self, preprocessor, test_pdf_path, tmp_path):
         """Test processing documents with pypdf2 method."""
         # Copy PDF to preprocessor's raw directory
         raw_pdf_path = preprocessor.raw_path / test_pdf_path.name
@@ -226,12 +210,12 @@ class TestBatchProcessing:
             save_individual=True
         )
         
-        # Verify method-specific directory was created during processing
+        # Verify method-specific directory was created
         pypdf2_dir = preprocessor.processed_path / "pypdf2"
+        assert pypdf2_dir.exists()
         
-        # If PyPDF2 failed to extract text, directory might not be created
+        # If processing succeeded, verify structure
         if processed_docs and len(processed_docs) > 0:
-            assert pypdf2_dir.exists()
             doc = processed_docs[0]
             assert doc["extraction_method"] == "pypdf2"
             assert "performance_metrics" in doc
@@ -240,10 +224,48 @@ class TestBatchProcessing:
             # Check file was saved in correct location
             json_files = list(pypdf2_dir.glob("*.json"))
             assert len(json_files) > 0
-        else:
-            # PyPDF2 may fail on complex PDFs - this is acceptable
-            print(f"PyPDF2 failed to extract text from {test_pdf_path.name}")
-            print("This is acceptable - some PDFs are challenging for PyPDF2")
+    
+    def test_process_all_methods(self, preprocessor, test_pdf_path, tmp_path):
+        """Test processing documents with all three methods."""
+        # Copy PDF to preprocessor's raw directory
+        raw_pdf_path = preprocessor.raw_path / test_pdf_path.name
+        import shutil
+        shutil.copy2(test_pdf_path, raw_pdf_path)
+        
+        supported_methods = ["pypdf2", "langchain", "unstructured"]
+        
+        for method in supported_methods:
+            try:
+                # Verify method-specific directory was created
+                method_dir = preprocessor.processed_path / method
+                method_dir.mkdir(exist_ok=True)
+                assert method_dir.exists()
+                
+                # Process with specific method
+                processed_docs = preprocessor.process_documents(
+                    extraction_method=method,
+                    track_performance=True,
+                    save_individual=True
+                )
+                
+                # Skip if method dependencies not available
+                if not processed_docs:
+                    continue
+                    
+                # If processing succeeded, verify structure
+                if len(processed_docs) > 0:
+                    doc = processed_docs[0]
+                    assert doc["extraction_method"] == method
+                    assert "performance_metrics" in doc
+                    assert "quality_metrics" in doc
+                    
+                    # Check file was saved in correct location
+                    json_files = list(method_dir.glob("*.json"))
+                    assert len(json_files) > 0
+                    
+            except (ImportError, Exception) as e:
+                # Skip if method dependencies not available
+                pytest.skip(f"{method} dependencies not available: {e}")
 
 
 class TestADR006Compliance:

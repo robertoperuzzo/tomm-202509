@@ -19,6 +19,7 @@ RUN apt-get update && apt-get install -y \
     tesseract-ocr \
     libglib2.0-0 \
     libmagic1 \
+    libgl1-mesa-glx \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Node.js
