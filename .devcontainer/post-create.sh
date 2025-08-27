@@ -27,7 +27,7 @@ DATA_RAW_PATH=./data/raw
 DATA_PROCESSED_PATH=./data/processed
 DATA_CHUNKS_PATH=./data/chunks
 
-# Chunking configuration
+# Chunker configuration
 CHUNK_SIZE_TOKENS=512
 CHUNK_OVERLAP=50
 SEMANTIC_THRESHOLD=0.7

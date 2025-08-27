@@ -1,4 +1,4 @@
-"""Configuration settings for the chunking strategies demo."""
+"""Configuration settings for the chunker strategies demo."""
 
 import os
 from pathlib import Path
@@ -26,8 +26,8 @@ TYPESENSE_CONFIG = {
     "api_key": os.getenv("TYPESENSE_API_KEY", "xyz"),
 }
 
-# Chunking strategies configuration
-CHUNKING_STRATEGIES = {
+# Chunker strategies configuration
+CHUNKER_STRATEGIES = {
     "fixed_size": {
         "chunk_size": int(os.getenv("CHUNK_SIZE_TOKENS", "512")),
         "chunk_overlap": int(os.getenv("CHUNK_OVERLAP", "50")),

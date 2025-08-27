@@ -49,9 +49,9 @@ This project demonstrates various chunking strategies for improving vector index
 │   ├── processed/         # Preprocessed papers (JSON)
 │   └── chunks/            # Generated chunks
 ├── src/                   # Source code
-│   ├── preprocessing/     # Data preprocessing modules
-│   ├── chunking/         # Chunking strategy implementations
-│   ├── indexing/         # Typesense indexing utilities
+│   ├── preprocessor/      # Data preprocessing modules
+│   ├── chunker/          # Chunking strategy implementations
+│   ├── indexer/          # Typesense indexing utilities
 │   ├── evaluation/       # Evaluation and metrics
 │   └── config.py         # Configuration settings
 ├── tests/               # Unit tests
@@ -65,19 +65,19 @@ This project demonstrates various chunking strategies for improving vector index
 ### 1. Data Preparation
 
 - Download ArXiv papers to `data/raw/`
-- Run preprocessing scripts to extract text and metadata
+- Run preprocessor scripts to extract text and metadata
 - Store processed data in `data/processed/`
 
-### 2. Chunking Strategies
+### 2. Chunker Strategies
 
-Implement and test different chunking approaches:
+Implement and test different chunker approaches:
 
 - **Fixed-size blocks**: Token-aware splitting using LangChain's `TokenTextSplitter`
 - **Sliding windows (LangChain)**: Document-structure aware splitting with `RecursiveCharacterTextSplitter`
-- **Sliding windows (Unstructured)**: Element-based chunking with custom overlap
-- **Semantic chunking**: Natural breakpoint identification using `SemanticChunker`
+- **Sliding windows (Unstructured)**: Element-based chunker with custom overlap
+- **Semantic chunker**: Natural breakpoint identification using `SemanticChunker`
 
-### 3. Indexing and Search
+### 3. Indexer and Search
 
 - Create separate Typesense collections for each strategy
 - Index chunks with metadata and search capabilities

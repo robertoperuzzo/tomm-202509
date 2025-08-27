@@ -34,18 +34,16 @@ ArxivPreprocessor
 └── save_processed_papers()     # Storage responsibility
 
 New Architecture (✅ Separated):
-src/download/
-├── arxiv_downloader.py         # ArXiv-specific downloading
-├── pubmed_downloader.py        # Future: PubMed downloading
-└── local_downloader.py         # Future: Local file handling
+src/downloader/
+├── arxiv_downloader.py
+└── __init__.py
 
-src/preprocessing/
-└── document_preprocessor.py    # Generic document processing
+src/preprocessor/
 ```
 
 ### Core Components:
 
-1. **Generic DocumentPreprocessor Class** (`src/preprocessing/document_preprocessor.py`)
+1. **Generic DocumentPreprocessor Class** (`src/preprocessor/document_preprocessor.py`)
 
    - Source-agnostic PDF processing for any document type
    - Auto-discovery of documents in `data/raw/` directory

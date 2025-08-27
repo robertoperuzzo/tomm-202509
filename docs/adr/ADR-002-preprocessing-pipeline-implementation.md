@@ -27,15 +27,16 @@ We implemented a comprehensive preprocessing pipeline with the following archite
 
 ### Core Components:
 
-1. **SimpleArxivProcessor Class** (`src/preprocessing/simple_processor.py`)
+1. **SimpleArxivProcessor Class** (`src/preprocessor/simple_processor.py`)
 
-   - Core functionality with essential text extraction and cleaning
-   - Multiple PDF processing methods (pdfplumber, PyMuPDF, PyPDF2)
-   - Advanced text cleaning (whitespace, page numbers, formatting)
-   - Academic paper structure preservation
-   - Lightweight implementation for demonstrations
+   - Basic text extraction from PDFs using pdfplumber
+   - Simple text cleaning (remove extra whitespace, normalize encoding)
+   - Extract basic metadata from filename patterns
+   - Async/await support for batch processing
+   - Rich console output with progress tracking
+   - JSON output compatible with chunker strategies
 
-2. **Full ArxivPreprocessor Class** (`src/preprocessing/arxiv_preprocessor.py`)
+2. **Full ArxivPreprocessor Class** (`src/preprocessor/arxiv_preprocessor.py`)
 
    - Complete ArXiv API integration for production use
    - Async download and processing capabilities

@@ -9,7 +9,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     command: sleep infinity
     networks:
-      - chunking-demo
+      - chunker-demo
     environment:
       - TYPESENSE_HOST=typesense
       - TYPESENSE_PORT=8108
@@ -26,7 +26,7 @@ services:
       - typesense-data:/data
     command: "--data-dir /data --api-key=xyz --listen-port 8108 --enable-cors"
     networks:
-      - chunking-demo
+      - chunker-demo
 
   # Typesense Dashboard
   typesensedashboard:
@@ -37,7 +37,7 @@ services:
     depends_on:
       - typesense
     networks:
-      - chunking-demo
+      - chunker-demo
 
   # Backend API (will be used later)
   backend:
@@ -54,7 +54,7 @@ services:
       - TYPESENSE_PROTOCOL=http
       - TYPESENSE_API_KEY=xyz
     networks:
-      - chunking-demo
+      - chunker-demo
     profiles:
       - production
 
@@ -68,7 +68,7 @@ services:
     depends_on:
       - backend
     networks:
-      - chunking-demo
+      - chunker-demo
     profiles:
       - production
 
@@ -76,5 +76,5 @@ volumes:
   typesense-data:
 
 networks:
-  chunking-demo:
+  chunker-demo:
     driver: bridge

@@ -10,7 +10,7 @@ Accepted
 
 ## Context
 
-The chunking strategies demo system required the ability to download ArXiv papers for preprocessing and evaluation. The user specifically requested "ArXiv download capability and add the python script in `src/download` folder" to complete the preprocessing pipeline implementation from the Demo Implementation Plan.
+The chunker strategies demo system required the ability to download ArXiv papers for preprocessing and evaluation. The user specifically requested "ArXiv download capability and add the python script in `src/downloader` folder" to complete the preprocessing pipeline implementation from the Demo Implementation Plan.
 
 The system needed:
 
@@ -27,7 +27,7 @@ We implemented a comprehensive ArXiv downloading system with the following compo
 
 ### Core Implementation:
 
-1. **ArxivDownloader Class** (`src/download/arxiv_downloader.py`)
+1. **ArxivDownloader Class** (`src/downloader/arxiv_downloader.py`)
 
    - Full-featured ArXiv API integration with XML parsing
    - Async/await pattern for concurrent downloads (5 concurrent max)

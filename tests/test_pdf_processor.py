@@ -12,7 +12,7 @@ import json
 import pytest
 from pathlib import Path
 
-from src.preprocessing.document_preprocessor import DocumentPreprocessor
+from src.preprocessor.document_preprocessor import DocumentPreprocessor
 
 
 @pytest.fixture

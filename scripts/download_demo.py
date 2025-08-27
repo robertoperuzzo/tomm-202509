@@ -2,7 +2,7 @@
 """ArXiv Download Demo Script
 
 This script demonstrates the ArXiv download functionality as part of the
-preprocessing pipeline for chunking strategies comparison.
+preprocessing pipeline for chunker strategies comparison.
 """
 
 import asyncio
@@ -16,7 +16,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 from rich.console import Console
 from rich.panel import Panel
 
-from src.download import ArxivDownloader, download_papers_by_category
+from src.downloader import ArxivDownloader, download_papers_by_category
 from src.config import RAW_DATA_DIR
 
 console = Console()
@@ -77,7 +77,7 @@ async def demo_search_query(query: str, max_papers: int = 3):
 async def main():
     """Main demo function."""
     parser = argparse.ArgumentParser(
-        description="ArXiv Download Demo - part of chunking strategies pipeline"
+        description="ArXiv Download Demo - part of chunker strategies pipeline"
     )
     parser.add_argument(
         "--papers", "-n", type=int, default=5,
@@ -97,7 +97,7 @@ async def main():
     console.print(
         Panel.fit(
             "[bold cyan]ArXiv Downloader Demo[/bold cyan]\n\n"
-            "This demo downloads ArXiv papers for the chunking strategies "
+            "This demo downloads ArXiv papers for the chunker strategies "
             "comparison system.\n\n"
             "Papers will be saved to the raw data directory and can then be "
             "processed using the preprocessing pipeline.",
