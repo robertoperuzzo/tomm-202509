@@ -2,6 +2,7 @@
 
 # Health Check Script for Typesense Services
 # This script tests the health of Typesense and Dashboard services
+# You have to run this script outside of the Docker container.
 
 echo "🔍 Checking Typesense and Dashboard Health..."
 echo "================================================"
@@ -62,15 +63,15 @@ test_json_api() {
     fi
 }
 
-# Test Typesense Health
+# Test Typesense API Health
 echo -e "\n${BLUE}🔍 Testing Typesense Server${NC}"
-test_json_api "Typesense Collections" "http://typesense:8108/collections" "xyz"
-test_json_api "Typesense Stats" "http://typesense:8108/stats.json" "xyz"
+test_json_api "Typesense Collections" "http://localhost:8108/collections" "xyz"
+test_json_api "Typesense Stats" "http://localhost:8108/stats.json" "xyz"
 
-# Test Port Forwarding (from host perspective)
+# Test Port Forwarding
 echo -e "\n${BLUE}🔍 Testing Port Forwarding${NC}"
 test_service "Typesense (localhost:8108)" "http://localhost:8108/health"
-test_service "Dashboard (localhost:8110)" "http://localhost:8110" "200"
+test_service "Dashboard (localhost:80)" "http://localhost:80" "200"
 
 # Summary
 echo ""
@@ -79,5 +80,5 @@ echo -e "${BLUE}🏥 Health Check Complete!${NC}"
 echo ""
 echo -e "If services are healthy, you can access:"
 echo -e "  • Typesense API: ${GREEN}http://localhost:8108${NC}"
-echo -e "  • Typesense Dashboard: ${GREEN}http://localhost:8110${NC}"
+echo -e "  • Typesense Dashboard: ${GREEN}http://localhost:80${NC}"
 echo ""

@@ -10,6 +10,14 @@ DATA_PROCESSED_PATH = PROJECT_ROOT / "data" / "processed"
 DATA_CHUNKS_PATH = PROJECT_ROOT / "data" / "chunks"
 LOGS_PATH = PROJECT_ROOT / "logs"
 
+# Legacy naming for backwards compatibility
+RAW_DATA_DIR = DATA_RAW_PATH
+PROCESSED_DATA_DIR = DATA_PROCESSED_PATH
+
+# ArXiv API configuration
+ARXIV_BASE_URL = "http://export.arxiv.org/api/query"
+MAX_CONCURRENT_DOWNLOADS = 5
+
 # Typesense configuration
 TYPESENSE_CONFIG = {
     "host": os.getenv("TYPESENSE_HOST", "localhost"),

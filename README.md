@@ -169,6 +169,11 @@ pip install -r requirements.txt
 pip install --upgrade -r requirements.txt
 ```
 
+## 📚 Documentation
+
+- **[Architecture Decision Records (ADR)](docs/adr/README.md)**: Key architectural decisions and their rationale
+- **[Implementation Progress](docs/adr/)**: Detailed documentation of system components and design choices
+
 ## 📚 Resources
 
 - [Unstructured Documentation](https://unstructured-io.github.io/unstructured/)
