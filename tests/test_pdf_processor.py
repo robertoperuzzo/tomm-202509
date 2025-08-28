@@ -1,9 +1,9 @@
 """Comprehensive preprocessing tests using real PDF data.
 
-This test module implements the ADR-006 three-method approach:
+This test module implements the ADR-006 and ADR-008 three-method approach:
 - pypdf: Raw baseline extraction (no OCR fixing)
-- LangChain: Balanced approach with LangChain integration  
-- Unstructured.io: Premium quality with structure awareness
+- unstructured: Premium quality with structure awareness
+- marker: AI/ML-enhanced processing (Premium Plus)
 
 Using real ArXiv PDF: 9308101_Dynamic Backtracking.pdf
 """
@@ -39,8 +39,8 @@ def preprocessor(tmp_path):
 
 @pytest.fixture
 def supported_methods():
-    """List of supported extraction methods per ADR-006."""
-    return ["pypdf", "langchain", "unstructured"]
+    """List of supported extraction methods per ADR-006 and ADR-008."""
+    return ["pypdf", "marker", "unstructured"]
 
 
 class TestThreeMethodExtraction:
@@ -88,32 +88,6 @@ class TestThreeMethodExtraction:
         else:
             assert len(result.text) > 0, "Should extract some text if successful"
     
-    def test_langchain_extraction(self, preprocessor, test_pdf_path):
-        """Test LangChain PyPDFParser extraction - ADR-006."""
-        # Try LangChain method
-        result = preprocessor.extract_text_from_pdf(
-            test_pdf_path, method="langchain", track_performance=True
-        )
-        
-        # Skip if no result (dependency not available and fallback failed)
-        if result is None:
-            pytest.skip("LangChain and fallback methods not available")
-        
-        assert isinstance(result, ExtractionResult)
-        assert result.text is not None
-        assert len(result.text) > 100
-        
-        # Check if we got LangChain or fallback method
-        extraction_method = result.method_specific_data["extraction_method"]
-        assert extraction_method in ["langchain", "unstructured", "pypdf"]
-        
-        if extraction_method == "langchain":
-            # Verify LangChain-specific data if actually using LangChain
-            assert "document_objects" in result.method_specific_data
-        
-        # Should have quality metrics regardless of method
-        assert result.quality_metrics["text_length"] > 0
-    
     def test_unstructured_extraction(self, preprocessor, test_pdf_path):
         """Test Unstructured.io extraction with structure awareness."""
         # Try Unstructured method
@@ -140,7 +114,71 @@ class TestThreeMethodExtraction:
         
         # Should have quality metrics regardless of method
         if len(result.text) > 0:
-            assert "backtracking" in result.text.lower() or len(result.text) > 0
+            assert ("backtracking" in result.text.lower() or
+                    len(result.text) > 0)
+
+    def test_marker_integration_and_extraction(self, preprocessor,
+                                               test_pdf_path):
+        """Test Marker AI/ML-enhanced extraction - ADR-008."""
+        # First test integration
+        assert 'marker' in preprocessor.SUPPORTED_METHODS, (
+            "Marker not in supported methods")
+        
+        # Test that Marker classes can be imported and instantiated
+        try:
+            from src.preprocessor.document_preprocessor import (
+                MarkerConfig, MarkerExtractor)
+            
+            config = MarkerConfig()
+            assert config is not None
+            assert hasattr(config, 'output_format')
+            assert hasattr(config, 'extract_images')
+            
+            extractor = MarkerExtractor(config)
+            assert extractor is not None
+        except ImportError as e:
+            pytest.skip(f"Marker library not available: {e}")
+        
+        # Test actual extraction
+        result = preprocessor.extract_text_from_pdf(
+            test_pdf_path, method="marker", track_performance=True
+        )
+        
+        # Skip if Marker library is not installed
+        if result is None:
+            pytest.skip("Marker extraction failed - library may not be "
+                        "installed")
+        
+        assert isinstance(result, ExtractionResult)
+        assert result.text is not None
+        
+        # Check Marker-specific data
+        extraction_method = result.method_specific_data.get(
+            "extraction_method", "")
+        if extraction_method == "marker":
+            # Verify Marker-specific metrics
+            assert "output_format" in result.method_specific_data
+            assert ("images" in result.method_specific_data or
+                    "metadata" in result.method_specific_data)
+            
+            # Check enhanced quality metrics
+            assert "image_reference_integrity" in result.quality_metrics
+            assert "equation_accuracy" in result.quality_metrics
+            assert "table_structure_score" in result.quality_metrics
+            
+            # Check performance metrics include Marker-specific data
+            assert "images_extracted" in result.performance_metrics
+            assert "tables_detected" in result.performance_metrics
+            assert "equations_processed" in result.performance_metrics
+            assert "marker_version" in result.performance_metrics
+        
+        # Should have extracted meaningful content
+        if len(result.text) > 0:
+            assert len(result.text) > 1000, (
+                "Marker should extract substantial text")
+            # Check for Marker's enhanced formatting
+            assert ("Dynamic Backtracking" in result.text or
+                    "backtracking" in result.text.lower())
 
 
 class TestPerformanceAndQuality:
@@ -185,7 +223,7 @@ class TestDirectoryStructure:
     
     def test_method_output_paths(self, preprocessor):
         """Test method-specific directory creation."""
-        for method in ["pypdf", "langchain", "unstructured"]:
+        for method in ["pypdf", "unstructured", "marker"]:
             output_path = preprocessor._get_method_output_path(method)
             
             assert output_path.exists()
@@ -254,8 +292,8 @@ class TestADR006Compliance:
         assert len(preprocessor.SUPPORTED_METHODS) == 3
         assert set(preprocessor.SUPPORTED_METHODS) == set(supported_methods)
         assert "pypdf" in preprocessor.SUPPORTED_METHODS
-        assert "langchain" in preprocessor.SUPPORTED_METHODS
         assert "unstructured" in preprocessor.SUPPORTED_METHODS
+        assert "marker" in preprocessor.SUPPORTED_METHODS
     
     def test_directory_structure_compliance(self, preprocessor):
         """Verify directory structure matches ADR-006 specification."""

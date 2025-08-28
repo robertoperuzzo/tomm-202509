@@ -34,7 +34,7 @@ def main():
         print(f"  - {doc.name}")
     
     # Process with both available methods
-    methods = ['pypdf', 'unstructured']
+    methods = ['pypdf', 'marker', 'unstructured']
     all_results = {}
     
     for method in methods:

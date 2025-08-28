@@ -18,6 +18,10 @@ pypdf>=6.0.0
 pymupdf>=1.23.8
 pdfplumber>=0.10.3
 
+# Advanced PDF processing with AI/ML capabilities
+marker-pdf>=1.8.0
+torch>=2.0.0
+
 # Data manipulation
 requests>=2.31.0
 aiohttp>=3.9.1
