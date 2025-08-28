@@ -40,7 +40,7 @@ def preprocessor(tmp_path):
 @pytest.fixture
 def supported_methods():
     """List of supported extraction methods per ADR-006 and ADR-008."""
-    return ["pypdf", "marker", "unstructured"]
+    return ["pypdf", "unstructured", "marker"]
 
 
 class TestThreeMethodExtraction:

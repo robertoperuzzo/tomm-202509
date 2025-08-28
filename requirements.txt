@@ -8,7 +8,10 @@ python-multipart>=0.0.6
 unstructured[pdf]
 langchain
 langchain-community
+langchain-huggingface
 langchain-text-splitters
+sentence-transformers>=2.2.2
+tiktoken>=0.5.1
 
 # Search and indexing
 typesense>=1.1.1
