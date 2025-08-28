@@ -1,7 +1,7 @@
 """Comprehensive preprocessing tests using real PDF data.
 
 This test module implements the ADR-006 three-method approach:
-- PyPDF2: Raw baseline extraction (no OCR fixing)
+- PyPDF: Raw baseline extraction (no OCR fixing)
 - LangChain: Balanced approach with LangChain integration  
 - Unstructured.io: Premium quality with structure awareness
 
@@ -58,7 +58,7 @@ def preprocessor(tmp_path):
 @pytest.fixture
 def supported_methods():
     """List of supported extraction methods per ADR-006."""
-    return ["pypdf2", "langchain", "unstructured"]
+    return ["pypdf", "langchain", "unstructured"]
 
 
 class TestThreeMethodExtraction:
@@ -75,10 +75,10 @@ class TestThreeMethodExtraction:
         assert preprocessor.SUPPORTED_METHODS == supported_methods
         assert len(preprocessor.SUPPORTED_METHODS) == 3
     
-    def test_pypdf2_raw_extraction(self, preprocessor, test_pdf_path):
-        """Test PyPDF2 raw extraction (no OCR fixing) - ADR-006."""
+    def test_pypdf_raw_extraction(self, preprocessor, test_pdf_path):
+        """Test PyPDF raw extraction (no OCR fixing) - ADR-006."""
         result = preprocessor.extract_text_from_pdf(
-            test_pdf_path, method="pypdf2", track_performance=True
+            test_pdf_path, method="pypdf", track_performance=True
         )
         
         assert result is not None
@@ -87,7 +87,7 @@ class TestThreeMethodExtraction:
         assert len(result.text) > 100
         
         # Verify it's raw extraction (may contain OCR artifacts)
-        assert result.method_specific_data["extraction_method"] == "pypdf2"
+        assert result.method_specific_data["extraction_method"] == "pypdf"
         
         # Check performance tracking
         assert "processing_time_seconds" in result.performance_metrics
@@ -118,7 +118,7 @@ class TestThreeMethodExtraction:
         assert result.method_specific_data["extraction_method"] == "langchain"
         assert "document_objects" in result.method_specific_data
         
-        # Should have better quality than raw PyPDF2
+        # Should have better quality than raw PyPDF
         assert result.quality_metrics["text_length"] > 0
     
     def test_unstructured_extraction(self, preprocessor, test_pdf_path):
@@ -188,7 +188,7 @@ class TestDirectoryStructure:
     
     def test_method_output_paths(self, preprocessor):
         """Test method-specific directory creation."""
-        for method in ["pypdf2", "langchain", "unstructured"]:
+        for method in ["pypdf", "langchain", "unstructured"]:
             output_path = preprocessor._get_method_output_path(method)
             
             assert output_path.exists()
@@ -214,33 +214,33 @@ class TestDirectoryStructure:
 class TestBatchProcessing:
     """Test batch processing with method-specific directories - ADR-006."""
     
-    def test_process_with_pypdf2_method(self, preprocessor, test_pdf_path, tmp_path):
-        """Test processing documents with pypdf2 method."""
+    def test_process_with_pypdf_method(self, preprocessor, test_pdf_path, tmp_path):
+        """Test processing documents with pypdf method."""
         # Copy PDF to preprocessor's raw directory
         raw_pdf_path = preprocessor.raw_path / test_pdf_path.name
         import shutil
         shutil.copy2(test_pdf_path, raw_pdf_path)
         
-        # Process with pypdf2 method
+        # Process with pypdf method
         processed_docs = preprocessor.process_documents(
-            extraction_method="pypdf2",
+            extraction_method="pypdf",
             track_performance=True,
             save_individual=True
         )
         
         # Verify method-specific directory was created
-        pypdf2_dir = preprocessor.processed_path / "pypdf2"
-        assert pypdf2_dir.exists()
+        pypdf_dir = preprocessor.processed_path / "pypdf"
+        assert pypdf_dir.exists()
         
         # If processing succeeded, verify structure
         if processed_docs and len(processed_docs) > 0:
             doc = processed_docs[0]
-            assert doc["extraction_method"] == "pypdf2"
+            assert doc["extraction_method"] == "pypdf"
             assert "performance_metrics" in doc
             assert "quality_metrics" in doc
             
             # Check file was saved in correct location
-            json_files = list(pypdf2_dir.glob("*.json"))
+            json_files = list(pypdf_dir.glob("*.json"))
             assert len(json_files) > 0
     
     def test_process_all_methods(self, preprocessor, test_pdf_path, tmp_path):
@@ -250,7 +250,7 @@ class TestBatchProcessing:
         import shutil
         shutil.copy2(test_pdf_path, raw_pdf_path)
         
-        supported_methods = ["pypdf2", "langchain", "unstructured"]
+        supported_methods = ["pypdf", "langchain", "unstructured"]
         
         for method in supported_methods:
             try:
@@ -293,7 +293,7 @@ class TestADR006Compliance:
         """Verify exactly three methods are supported."""
         assert len(preprocessor.SUPPORTED_METHODS) == 3
         assert set(preprocessor.SUPPORTED_METHODS) == set(supported_methods)
-        assert "pypdf2" in preprocessor.SUPPORTED_METHODS
+        assert "pypdf" in preprocessor.SUPPORTED_METHODS
         assert "langchain" in preprocessor.SUPPORTED_METHODS
         assert "unstructured" in preprocessor.SUPPORTED_METHODS
     
@@ -363,7 +363,7 @@ def preprocessor(tmp_path):
 @pytest.fixture
 def supported_methods():
     """List of supported extraction methods per ADR-006."""
-    return ["pypdf2", "langchain", "unstructured"]
+    return ["pypdf", "langchain", "unstructured"]
 
 
 class TestThreeMethodExtraction:
@@ -380,10 +380,10 @@ class TestThreeMethodExtraction:
         assert preprocessor.SUPPORTED_METHODS == supported_methods
         assert len(preprocessor.SUPPORTED_METHODS) == 3
     
-    def test_pypdf2_raw_extraction(self, preprocessor, test_pdf_path):
-        """Test PyPDF2 raw extraction (no OCR fixing) - ADR-006."""
+    def test_pypdf_raw_extraction(self, preprocessor, test_pdf_path):
+        """Test PyPDF raw extraction (no OCR fixing) - ADR-006."""
         result = preprocessor.extract_text_from_pdf(
-            test_pdf_path, method="pypdf2", track_performance=True
+            test_pdf_path, method="pypdf", track_performance=True
         )
         
         assert result is not None
@@ -392,7 +392,7 @@ class TestThreeMethodExtraction:
         assert len(result.text) > 100
         
         # Verify it's raw extraction (may contain OCR artifacts)
-        assert result.method_specific_data["extraction_method"] == "pypdf2"
+        assert result.method_specific_data["extraction_method"] == "pypdf"
         
         # Check performance tracking
         assert "processing_time_seconds" in result.performance_metrics
@@ -423,7 +423,7 @@ class TestThreeMethodExtraction:
         assert result.method_specific_data["extraction_method"] == "langchain"
         assert "document_objects" in result.method_specific_data
         
-        # Should have better quality than raw PyPDF2
+        # Should have better quality than raw PyPDF
         assert result.quality_metrics["text_length"] > 0
     
     def test_unstructured_extraction(self, preprocessor, test_pdf_path):
@@ -521,7 +521,7 @@ class TestPerformanceAndQuality:
     def test_method_comparison(self, preprocessor, test_pdf_path):
         """Test method comparison functionality - ADR-006."""
         comparison = preprocessor.compare_extraction_methods(
-            test_pdf_path, methods=["pypdf2"]  # Test with just one method to avoid dependencies
+            test_pdf_path, methods=["pypdf"]  # Test with just one method to avoid dependencies
         )
         
         assert "document" in comparison
@@ -532,11 +532,11 @@ class TestPerformanceAndQuality:
         
         # Check results structure
         results = comparison["results"]
-        assert "pypdf2" in results
+        assert "pypdf" in results
         
-        if results["pypdf2"]["success"]:
-            assert "performance_metrics" in results["pypdf2"]
-            assert "quality_metrics" in results["pypdf2"]
+        if results["pypdf"]["success"]:
+            assert "performance_metrics" in results["pypdf"]
+            assert "quality_metrics" in results["pypdf"]
 
 
 class TestDirectoryStructure:
@@ -544,7 +544,7 @@ class TestDirectoryStructure:
     
     def test_method_output_paths(self, preprocessor):
         """Test method-specific directory creation."""
-        for method in ["pypdf2", "langchain", "unstructured"]:
+        for method in ["pypdf", "langchain", "unstructured"]:
             output_path = preprocessor._get_method_output_path(method)
             
             assert output_path.exists()
@@ -573,27 +573,27 @@ class TestDirectoryStructure:
         import shutil
         shutil.copy2(test_pdf_path, raw_pdf_path)
         
-        # Process with pypdf2 method
+        # Process with pypdf method
         processed_doc = preprocessor.process_document(
-            raw_pdf_path, extraction_method="pypdf2", track_performance=True
+            raw_pdf_path, extraction_method="pypdf", track_performance=True
         )
         
         if processed_doc:  # Only test if processing succeeded
             # Save to method-specific directory
             output_path = preprocessor.save_processed_document(
-                processed_doc, raw_pdf_path, "pypdf2"
+                processed_doc, raw_pdf_path, "pypdf"
             )
             
             saved_file = Path(output_path)
             assert saved_file.exists()
-            assert saved_file.parent.name == "pypdf2"
+            assert saved_file.parent.name == "pypdf"
             assert saved_file.name.endswith(".json")
             
             # Verify content
             with open(saved_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
             
-            assert data["extraction_method"] == "pypdf2"
+            assert data["extraction_method"] == "pypdf"
             assert "performance_metrics" in data
             assert "quality_metrics" in data
 
@@ -610,7 +610,7 @@ class TestBatchProcessing:
         
         results = {}
         
-        for method in ["pypdf2", "langchain", "unstructured"]:
+        for method in ["pypdf", "langchain", "unstructured"]:
             try:
                 processed_docs = preprocessor.process_documents(
                     extraction_method=method,
@@ -639,7 +639,7 @@ class TestBatchProcessing:
         successful_methods = [m for m, r in results.items() if r]
         assert len(successful_methods) > 0, "No extraction methods succeeded"
         
-        for method in ["pypdf2", "langchain", "unstructured"]:
+        for method in ["pypdf", "langchain", "unstructured"]:
             try:
                 processed_docs = preprocessor.process_documents(
                     extraction_method=method,
@@ -675,9 +675,9 @@ class TestBatchProcessing:
         import shutil
         shutil.copy2(test_pdf_path, raw_pdf_path)
         
-        # Process all documents in the directory with pypdf2
+        # Process all documents in the directory with pypdf
         processed_docs = preprocessor.process_documents(
-            extraction_method="pypdf2",
+            extraction_method="pypdf",
             track_performance=True,
             save_individual=True
         )
@@ -685,12 +685,12 @@ class TestBatchProcessing:
         assert len(processed_docs) >= 0  # Allow for processing failures
         
         # Verify directory structure
-        pypdf2_dir = preprocessor.processed_path / "pypdf2"
-        assert pypdf2_dir.exists()
+        pypdf_dir = preprocessor.processed_path / "pypdf"
+        assert pypdf_dir.exists()
         
         if processed_docs:
             # Check file was saved in correct location
-            json_files = list(pypdf2_dir.glob("*.json"))
+            json_files = list(pypdf_dir.glob("*.json"))
             assert len(json_files) > 0
     
     def test_comparative_analysis_directory(self, preprocessor, test_pdf_path, tmp_path):
@@ -700,10 +700,10 @@ class TestBatchProcessing:
         import shutil
         shutil.copy2(test_pdf_path, raw_pdf_path)
         
-        # Run comparison (with just pypdf2 to avoid dependency issues)
+        # Run comparison (with just pypdf to avoid dependency issues)
         try:
             comparison = preprocessor.compare_extraction_methods(
-                raw_pdf_path, methods=["pypdf2"]
+                raw_pdf_path, methods=["pypdf"]
             )
             
             # Save comparison report
@@ -737,9 +737,9 @@ class TestBatchProcessing:
         import shutil
         shutil.copy2(test_pdf_path, raw_pdf_path)
         
-        # Process all documents in the directory with pypdf2
+        # Process all documents in the directory with pypdf
         processed_docs = preprocessor.process_documents(
-            extraction_method="pypdf2",
+            extraction_method="pypdf",
             track_performance=True,
             save_individual=True
         )
@@ -747,12 +747,12 @@ class TestBatchProcessing:
         assert len(processed_docs) >= 0  # Allow for processing failures
         
         # Verify directory structure
-        pypdf2_dir = preprocessor.processed_path / "pypdf2"
-        assert pypdf2_dir.exists()
+        pypdf_dir = preprocessor.processed_path / "pypdf"
+        assert pypdf_dir.exists()
         
         if processed_docs:
             # Check file was saved in correct location
-            json_files = list(pypdf2_dir.glob("*.json"))
+            json_files = list(pypdf_dir.glob("*.json"))
             assert len(json_files) > 0
     
     def test_comparative_analysis_directory(self, preprocessor, test_pdf_path, tmp_path):
@@ -762,10 +762,10 @@ class TestBatchProcessing:
         import shutil
         shutil.copy2(test_pdf_path, raw_pdf_path)
         
-        # Run comparison (with just pypdf2 to avoid dependency issues)
+        # Run comparison (with just pypdf to avoid dependency issues)
         try:
             comparison = preprocessor.compare_extraction_methods(
-                raw_pdf_path, methods=["pypdf2"]
+                raw_pdf_path, methods=["pypdf"]
             )
             
             # Save comparison report
@@ -791,24 +791,24 @@ class TestADR006Compliance:
         """Verify exactly three methods are supported."""
         assert len(preprocessor.SUPPORTED_METHODS) == 3
         assert set(preprocessor.SUPPORTED_METHODS) == set(supported_methods)
-        assert "pypdf2" in preprocessor.SUPPORTED_METHODS
+        assert "pypdf" in preprocessor.SUPPORTED_METHODS
         assert "langchain" in preprocessor.SUPPORTED_METHODS
         assert "unstructured" in preprocessor.SUPPORTED_METHODS
     
-    def test_pypdf2_raw_no_ocr_fixing(self, preprocessor, test_pdf_path):
-        """Verify PyPDF2 method provides raw extraction without OCR fixing."""
+    def test_pypdf_raw_no_ocr_fixing(self, preprocessor, test_pdf_path):
+        """Verify PyPDF method provides raw extraction without OCR fixing."""
         try:
-            result = preprocessor._extract_with_pypdf2(test_pdf_path, track_performance=True)
+            result = preprocessor._extract_with_pypdf(test_pdf_path, track_performance=True)
             
             # Should be raw extraction
             assert isinstance(result, ExtractionResult)
-            assert result.method_specific_data["extraction_method"] == "pypdf2"
+            assert result.method_specific_data["extraction_method"] == "pypdf"
             
             # May contain OCR artifacts (this is expected for raw extraction)
             # We don't test for absence of artifacts since that's the point
             
         except Exception as e:
-            pytest.skip(f"PyPDF2 test skipped due to: {e}")
+            pytest.skip(f"PyPDF test skipped due to: {e}")
     
     def test_performance_metrics_required(self, preprocessor, test_pdf_path):
         """Verify all methods provide performance metrics."""

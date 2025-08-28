@@ -14,7 +14,7 @@ langchain-text-splitters
 typesense>=1.1.1
 
 # PDF processing
-PyPDF2>=3.0.1
+pypdf>=6.0.0
 pymupdf>=1.23.8
 pdfplumber>=0.10.3
 

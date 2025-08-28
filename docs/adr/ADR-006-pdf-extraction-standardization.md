@@ -13,7 +13,7 @@ The current document preprocessing implementation in `src/preprocessor/document_
 1. **Unstructured.io** - Recently implemented as default, provides document structure and excellent OCR correction
 2. **pdfplumber** - Currently used as fallback, good for simple text extraction
 3. **PyMuPDF (fitz)** - Currently used as fallback, fast but basic
-4. **PyPDF2** - Currently used as fallback, simple and lightweight
+4. **PyPDF** - Currently used as fallback, simple and lightweight
 
 ### Problems with Current Approach
 
@@ -27,9 +27,9 @@ The current document preprocessing implementation in `src/preprocessor/document_
 
 Standardize on exactly **three PDF extraction methods** with clear positioning and systematic evaluation:
 
-### Method 1: PyPDF2 (Baseline/Raw)
+### Method 1: PyPDF (Baseline/Raw)
 
-- **Library**: `PyPDF2` (already in requirements)
+- **Library**: `PyPDF` (already in requirements)
 - **Positioning**: Fastest, completely raw extraction with no OCR fixing
 - **Use Case**: Demonstrate baseline quality without any enhancement
 - **Known Limitations**:
@@ -49,7 +49,7 @@ Standardize on exactly **three PDF extraction methods** with clear positioning a
   - Native LangChain Document objects
   - Metadata extraction capabilities
   - Consistent with chunking strategies that use LangChain
-  - Better than PyPDF2 for complex layouts
+  - Better than PyPDF for complex layouts
 
 ### Method 3: Unstructured.io (Premium/Structured)
 
@@ -128,8 +128,8 @@ The system must provide:
 
 - Remove `_extract_with_pdfplumber()` - Replace with LangChain PyPDFParser
 - Remove `_extract_with_pymupdf()` - Not needed in new three-method approach
-- **Remove `_fix_ocr_artifacts()` method** - Keep PyPDF2 completely raw to demonstrate quality vs. performance trade-offs
-- Update PyPDF2 method to return raw extraction without any OCR correction
+- **Remove `_fix_ocr_artifacts()` method** - Keep pypdf completely raw to demonstrate quality vs. performance trade-offs
+- Update PyPDF method to return raw extraction without any OCR correction
 
 **Cleanup Legacy Dependencies:**
 
@@ -141,7 +141,7 @@ The system must provide:
 **Fallback Logic Changes:**
 
 - Remove complex fallback chains between deprecated methods
-- Implement simple fallback: `unstructured` → `langchain` → `pypdf2`
+- Implement simple fallback: `unstructured` → `langchain` → `PyPDF`
 - Log deprecation warnings for users still calling old method names
 
 #### 1.2 Implement Directory Structure
@@ -168,12 +168,12 @@ def _generate_output_filename(self, pdf_path: Path) -> str:
     return f"{clean_name}_{timestamp}.json"
 ```
 
-#### 1.3 Implement PyPDF2 Method (Raw/No OCR Fixing)
+#### 1.3 Implement PyPDF Method (Raw/No OCR Fixing)
 
 ```python
-def _extract_with_pypdf2(self, pdf_path: Path,
+def _extract_with_pypdf(self, pdf_path: Path,
                         track_performance: bool = True) -> ExtractionResult:
-    """Raw PyPDF2 extraction with NO OCR fixing - demonstrates baseline quality."""
+    """Raw PyPDF extraction with NO OCR fixing - demonstrates baseline quality."""
 ```
 
 #### 1.4 Implement LangChain PyPDFParser Method
@@ -249,12 +249,12 @@ To enable easy comparison between extraction methods, processed documents will b
 
 ```
 data/processed/
-├── pypdf2/
-│   └── <original_lowercase_without_spaces_and_specialchars>.json
+├── pypdf/
+│   └── <original_lowercase_without_spaces_and_specialchars_only_underscores>.json
 ├── langchain/
-│   └── <original_lowercase_without_spaces_and_specialchars>.json
+│   └── <original_lowercase_without_spaces_and_specialchars_only_underscores>.json
 ├── unstructured/
-│   └── <original_lowercase_without_spaces_and_specialchars>.json
+│   └── <original_lowercase_without_spaces_and_specialchars_only_underscores>.json
 └── comparative_analysis/
     └── comparison_report_YYYYMMDD_HHMMSS.json
 ```
@@ -271,14 +271,13 @@ data/processed/
 
 Each processed document follows the naming pattern:
 
-- **Format**: `<original_lowercase_without_spaces_and_specialchars>_YYYYMMDD_HHMMSS.json`
+- **Format**: `<original_lowercase_without_spaces_and_specialchars_only_underscores>.json`
 - **Original**: Derived from the source PDF filename, converted to lowercase with spaces and special characters removed
-- **Timestamp**: Processing date and time for version tracking
 
 **Examples**:
 
-- `9308101_Dynamic Backtracking.pdf` → `9308101dynamicbacktracking_20250827_143022.json`
-- `A Market-Oriented Programming Environment.pdf` → `amarketorientedprogrammingenvironment_20250827_143025.json`
+- `9308101_Dynamic Backtracking.pdf` → `9308101_dynamic_backtracking.json`
+- `A Market-Oriented Programming Environment.pdf` → `a_market_oriented_programming_environment.json`
 
 ### Comparative Analysis Directory
 
@@ -292,14 +291,14 @@ The `comparative_analysis/` folder serves specific purposes:
 
 ### Quality Improvements Expected
 
-1. **Raw vs. Enhanced Comparison**: Clear demonstration of PyPDF2 raw quality vs. Unstructured.io enhanced quality
+1. **Raw vs. Enhanced Comparison**: Clear demonstration of PyPDF raw quality vs. Unstructured.io enhanced quality
 2. **Objective Metrics**: Quantified comparison instead of subjective assessment
 3. **Method Selection**: Data-driven choice based on use case requirements
 4. **Output Separation**: Easy comparison via separate JSON files per method
 
 ### Performance Characteristics (Estimated)
 
-1. **PyPDF2**: ~3-5x faster than Unstructured, raw baseline quality with OCR artifacts
+1. **PyPDF**: ~3-5x faster than Unstructured, raw baseline quality with OCR artifacts
 2. **LangChain**: ~1.5-3x faster than Unstructured, good quality with LangChain ecosystem benefits
 3. **Unstructured**: Slowest but highest quality with structure awareness and OCR correction
 
@@ -319,7 +318,7 @@ The `comparative_analysis/` folder serves specific purposes:
 2. **Method Names**: Map old method names to new standardized methods:
    - `"pdfplumber"` → `"langchain"` (with deprecation warning)
    - `"pymupdf"` → `"langchain"` (with deprecation warning)
-   - `"pypdf2"` → `"pypdf2"` (raw version, no OCR fixing)
+   - `"pypdf"` → `"pypdf"` (raw version, no OCR fixing)
    - `"unstructured"` → `"unstructured"` (enhanced with metrics)
 
 ### Gradual Migration
@@ -345,7 +344,7 @@ The `comparative_analysis/` folder serves specific purposes:
 
 - Direct calls to `_extract_with_pdfplumber()` or `_extract_with_pymupdf()` will raise exceptions
 - `_fix_ocr_artifacts()` method will no longer be available
-- Raw PyPDF2 output will contain OCR artifacts (by design)
+- Raw PyPDF output will contain OCR artifacts (by design)
 
 ## Testing Strategy
 
@@ -385,7 +384,7 @@ The `comparative_analysis/` folder serves specific purposes:
 
 ## Success Criteria
 
-1. **Three Methods Only**: Exactly PyPDF2, LangChain, and Unstructured.io
+1. **Three Methods Only**: Exactly PyPDF, LangChain, and Unstructured.io
 2. **Performance Data**: All methods provide processing time and memory metrics
 3. **Quality Metrics**: Objective quality scores for text extraction
 4. **Comparative Analysis**: Side-by-side comparison functionality
@@ -403,7 +402,7 @@ The `comparative_analysis/` folder serves specific purposes:
 
 **Questions for Discussion:**
 
-1. Are the three selected methods (PyPDF2, LangChain, Unstructured.io) the right choice?
+1. Are the three selected methods (PyPDF, LangChain, Unstructured.io) the right choice?
 2. What additional performance/quality metrics would be valuable?
 3. Should we maintain any existing methods during transition?
 4. What are the most important quality metrics for your use case?

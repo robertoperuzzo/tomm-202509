@@ -20,7 +20,7 @@ The current document preprocessing implementation in `src/preprocessor/document_
 
    - `pdfplumber`
    - `PyMuPDF` (fitz)
-   - `PyPDF2`
+   - `pypdf`
 
    This creates complexity in maintenance and inconsistent results across different extraction methods.
 

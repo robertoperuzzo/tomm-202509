@@ -5,7 +5,7 @@ It extracts text content and metadata from PDF files and stores them as JSON.
 Documents should be downloaded by specialized downloaders into data/raw folder.
 
 Supports three PDF extraction methods as per ADR-006:
-1. PyPDF2 - Raw baseline extraction (no OCR fixing)
+1. pypdf - Raw baseline extraction (no OCR fixing)
 2. LangChain PyPDFParser - Balanced approach with LangChain integration
 3. Unstructured.io - Premium quality with structure awareness
 """
@@ -30,7 +30,7 @@ from rich.progress import (
 )
 
 # PDF processing libraries
-from PyPDF2 import PdfReader
+from pypdf import PdfReader
 
 # LangChain for PDF parsing
 try:
@@ -162,13 +162,13 @@ class DocumentPreprocessor:
     and saves processed documents as JSON.
     
     Supports three extraction methods as per ADR-006:
-    - pypdf2: Raw baseline extraction (no OCR fixing)
+    - pypdf: Raw baseline extraction (no OCR fixing)
     - langchain: Balanced approach with LangChain integration  
     - unstructured: Premium quality with structure awareness
     """
 
     # Supported extraction methods
-    SUPPORTED_METHODS = ['pypdf2', 'langchain', 'unstructured']
+    SUPPORTED_METHODS = ['pypdf', 'langchain', 'unstructured']
 
     def __init__(self, raw_path: Optional[Path] = None, 
                  processed_path: Optional[Path] = None):
@@ -263,7 +263,7 @@ class DocumentPreprocessor:
         
         Args:
             pdf_path: Path to PDF file
-            method: Extraction method ("pypdf2", "langchain", "unstructured")
+            method: Extraction method ("pypdf", "langchain", "unstructured")
             track_performance: Whether to track performance metrics
             
         Returns:
@@ -294,20 +294,20 @@ class DocumentPreprocessor:
                 return self._extract_with_unstructured(pdf_path, track_performance)
             elif method == "langchain":
                 return self._extract_with_langchain(pdf_path, track_performance)
-            elif method == "pypdf2":
-                return self._extract_with_pypdf2(pdf_path, track_performance)
+            elif method == "pypdf":
+                return self._extract_with_pypdf(pdf_path, track_performance)
                 
         except Exception as e:
             logger.error(
                 "Error extracting text from %s with %s: %s",
                 pdf_path, method, e
             )
-            # Simple fallback chain: unstructured -> langchain -> pypdf2
-            fallback_methods = ["unstructured", "langchain", "pypdf2"]
+            # Simple fallback chain: unstructured -> langchain -> pypdf
+            fallback_methods = ["unstructured", "langchain", "pypdf"]
             if method == "unstructured" and not UNSTRUCTURED_AVAILABLE:
-                fallback_methods = ["langchain", "pypdf2"]
+                fallback_methods = ["langchain", "pypdf"]
             if method == "langchain" and not LANGCHAIN_AVAILABLE:
-                fallback_methods = ["unstructured", "pypdf2"]
+                fallback_methods = ["unstructured", "pypdf"]
             
             for fallback in fallback_methods:
                 if fallback != method:
@@ -322,9 +322,9 @@ class DocumentPreprocessor:
                         continue
             return None
 
-    def _extract_with_pypdf2(self, pdf_path: Path, 
+    def _extract_with_pypdf(self, pdf_path: Path, 
                             track_performance: bool = True) -> ExtractionResult:
-        """Raw PyPDF2 extraction with NO OCR fixing - demonstrates baseline quality."""
+        """Raw pypdf extraction with NO OCR fixing - demonstrates baseline quality."""
         with PerformanceTracker() as tracker:
             text_parts = []
             pages_processed = 0
@@ -349,7 +349,7 @@ class DocumentPreprocessor:
                 text=raw_text,
                 performance_metrics=performance_metrics,
                 quality_metrics=quality_metrics,
-                method_specific_data={"extraction_method": "pypdf2", "pages_processed": pages_processed}
+                method_specific_data={"extraction_method": "pypdf", "pages_processed": pages_processed}
             )
 
     def _extract_with_langchain(self, pdf_path: Path,
@@ -481,7 +481,7 @@ class DocumentPreprocessor:
         
         Args:
             file_path: Path to the document file
-            extraction_method: PDF text extraction method ("pypdf2", "langchain", "unstructured")
+            extraction_method: PDF text extraction method ("pypdf", "langchain", "unstructured")
             track_performance: Whether to track performance metrics
             additional_metadata: Optional additional metadata to include
             
@@ -571,7 +571,7 @@ class DocumentPreprocessor:
         Args:
             file_paths: Specific file paths to process (if None, discovers all)
             file_pattern: Glob pattern for document discovery
-            extraction_method: PDF text extraction method ("pypdf2", "langchain", "unstructured")
+            extraction_method: PDF text extraction method ("pypdf", "langchain", "unstructured")
             track_performance: Whether to track performance metrics
             metadata_mapping: Optional mapping of filename -> additional metadata
             save_individual: Whether to save each document individually
@@ -736,7 +736,7 @@ class DocumentPreprocessor:
         
         # Simple recommendation logic
         # If unstructured has good performance, recommend it for quality
-        # If pypdf2 is much faster and quality is acceptable, recommend it
+        # If pypdf is much faster and quality is acceptable, recommend it
         # Otherwise recommend langchain as balanced option
         
         methods = set(performance_summary.keys()) & set(quality_summary.keys())
@@ -748,11 +748,11 @@ class DocumentPreprocessor:
             if unstructured_time < 10:  # Less than 10 seconds
                 return "unstructured - Best quality with reasonable performance"
         
-        if "pypdf2" in methods and "unstructured" in methods:
-            pypdf2_time = performance_summary["pypdf2"]["processing_time"]
+        if "pypdf" in methods and "unstructured" in methods:
+            pypdf_time = performance_summary["pypdf"]["processing_time"]
             unstructured_time = performance_summary["unstructured"]["processing_time"]
-            if pypdf2_time < unstructured_time / 3:  # 3x faster
-                return "pypdf2 - Much faster, acceptable for speed-critical applications"
+            if pypdf_time < unstructured_time / 3:  # 3x faster
+                return "pypdf - Much faster, acceptable for speed-critical applications"
         
         if "langchain" in methods:
             return "langchain - Balanced performance and quality"
