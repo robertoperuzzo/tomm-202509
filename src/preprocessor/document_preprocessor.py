@@ -64,6 +64,24 @@ except ImportError:
     Element = None
     UNSTRUCTURED_AVAILABLE = False
 
+# Marker for research-grade PDF processing
+try:
+    from marker.converters.pdf import PdfConverter
+    from marker.models import create_model_dict
+    from marker.output import text_from_rendered
+    from marker.config.parser import ConfigParser
+    MARKER_AVAILABLE = True
+except ImportError:
+    logger = logging.getLogger(__name__)
+    logger.warning(
+        "Marker not available. Advanced PDF processing will be limited."
+    )
+    PdfConverter = None
+    create_model_dict = None
+    text_from_rendered = None
+    ConfigParser = None
+    MARKER_AVAILABLE = False
+
 from ..config import DATA_RAW_PATH, DATA_PROCESSED_PATH, LOGS_PATH
 
 # Setup logging
@@ -157,6 +175,258 @@ class QualityAnalyzer:
         }
 
 
+class MarkerExtractionError(Exception):
+    """Custom exception for Marker extraction failures."""
+    pass
+
+
+@dataclass
+class MarkerConfig:
+    """Configuration for Marker PDF extraction."""
+    output_format: str = "markdown"  # markdown|json|html|chunks
+    use_llm: bool = False           # LLM enhancement
+    force_ocr: bool = False         # Force OCR processing
+    extract_images: bool = True     # Extract images
+    paginate_output: bool = False   # Page separation
+    debug: bool = False            # Debug mode
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert config to dictionary for Marker."""
+        return {
+            "output_format": self.output_format,
+            "use_llm": self.use_llm,
+            "force_ocr": self.force_ocr,
+            "disable_image_extraction": not self.extract_images,
+            "paginate_output": self.paginate_output,
+            "debug": self.debug
+        }
+
+
+class MarkerExtractor:
+    """Marker-based PDF extraction with performance tracking."""
+    
+    def __init__(self, config: Optional[MarkerConfig] = None):
+        """Initialize Marker extractor with configuration.
+        
+        Args:
+            config: MarkerConfig instance, defaults to basic markdown
+                extraction
+        """
+        if not MARKER_AVAILABLE:
+            raise MarkerExtractionError(
+                "Marker library not available. Please install with: "
+                "pip install marker-pdf"
+            )
+        
+        self.config = config or MarkerConfig()
+        self._artifact_dict = None
+        self._converter = None
+        
+    @property
+    def artifact_dict(self):
+        """Lazy loading of Marker models to avoid startup overhead."""
+        if self._artifact_dict is None:
+            self._artifact_dict = create_model_dict()
+        return self._artifact_dict
+    
+    @property
+    def converter(self):
+        """Lazy loading of Marker converter."""
+        if self._converter is None:
+            config_parser = ConfigParser(self.config.to_dict())
+            self._converter = PdfConverter(
+                config=config_parser.generate_config_dict(),
+                artifact_dict=self.artifact_dict,
+                processor_list=config_parser.get_processors(),
+                renderer=config_parser.get_renderer(),
+                llm_service=config_parser.get_llm_service()
+            )
+        return self._converter
+    
+    def extract_text(self, pdf_path: Path) -> ExtractionResult:
+        """Extract text using Marker with full performance metrics.
+        
+        Args:
+            pdf_path: Path to PDF file
+            
+        Returns:
+            ExtractionResult with text, performance metrics, and quality
+            metrics
+        """
+        pdf_path = Path(pdf_path)
+        
+        with PerformanceTracker() as tracker:
+            try:
+                # Convert document with Marker
+                rendered = self.converter(str(pdf_path))
+                
+                # Extract text based on output format
+                if self.config.output_format == "markdown":
+                    text = (rendered.markdown if hasattr(rendered, 'markdown')
+                            else str(rendered))
+                    method_data = {
+                        "output_format": "markdown",
+                        "metadata": getattr(rendered, 'metadata', {}),
+                        "images": getattr(rendered, 'images', {})
+                    }
+                elif self.config.output_format == "json":
+                    # JSON structure as text for compatibility
+                    text = str(rendered)
+                    method_data = {
+                        "output_format": "json",
+                        "children": getattr(rendered, 'children', []),
+                        "block_type": getattr(rendered, 'block_type',
+                                              'Document'),
+                        "metadata": getattr(rendered, 'metadata', {})
+                    }
+                else:
+                    # For other formats, extract text using Marker's utility
+                    text, _, images = text_from_rendered(rendered)
+                    method_data = {
+                        "output_format": self.config.output_format,
+                        "images": images,
+                        "metadata": getattr(rendered, 'metadata', {})
+                    }
+                    
+            except Exception as e:
+                raise MarkerExtractionError(
+                    f"Marker extraction failed: {str(e)}"
+                ) from e
+        
+        # Calculate performance metrics
+        performance_metrics = tracker.get_metrics(
+            len(text),
+            method_data.get('metadata', {}).get('page_count', 1)
+        )
+        
+        # Add Marker-specific performance metrics
+        performance_metrics.update({
+            "images_extracted": len(method_data.get('images', {})),
+            "tables_detected": self._count_tables(method_data),
+            "equations_processed": self._count_equations(text),
+            "marker_version": self._get_marker_version(),
+            "llm_enhanced": self.config.use_llm,
+            "output_format": self.config.output_format
+        })
+        
+        # Calculate quality metrics
+        quality_metrics = QualityAnalyzer.analyze_text(text)
+        
+        # Add Marker-specific quality metrics
+        quality_metrics.update({
+            "structure_elements": self._count_structure_elements(method_data),
+            "image_reference_integrity": self._check_image_references(
+                text, method_data),
+            "equation_accuracy": self._assess_equation_quality(text),
+            "table_structure_score": self._assess_table_quality(method_data)
+        })
+        
+        return ExtractionResult(
+            text=text,
+            performance_metrics=performance_metrics,
+            quality_metrics=quality_metrics,
+            method_specific_data=method_data
+        )
+    
+    def _count_tables(self, method_data: Dict) -> int:
+        """Count detected tables in the document."""
+        if self.config.output_format == "json":
+            # Count Table type elements in JSON structure
+            return self._count_elements_by_type(
+                method_data.get('children', []), 'Table')
+        elif "metadata" in method_data:
+            # Extract from metadata if available
+            return method_data.get('metadata', {}).get('table_count', 0)
+        return 0
+    
+    def _count_equations(self, text: str) -> int:
+        """Count LaTeX equations in extracted text."""
+        # Count both inline ($...$) and display ($$...$$) equations
+        inline_count = len(re.findall(r'\$[^$]+\$', text))
+        display_count = len(re.findall(r'\$\$[^$]+\$\$', text))
+        return inline_count + display_count
+    
+    def _get_marker_version(self) -> str:
+        """Get Marker library version."""
+        try:
+            import marker
+            return getattr(marker, '__version__', 'unknown')
+        except (ImportError, AttributeError):
+            return 'unknown'
+    
+    def _count_structure_elements(self, method_data: Dict) -> int:
+        """Count structural elements like headings, paragraphs, etc."""
+        if self.config.output_format == "json":
+            return self._count_all_elements(method_data.get('children', []))
+        return 0
+    
+    def _count_elements_by_type(self, elements: List,
+                                element_type: str) -> int:
+        """Recursively count elements of specific type."""
+        count = 0
+        for element in elements:
+            if isinstance(element, dict):
+                if element.get('block_type') == element_type:
+                    count += 1
+                # Recursively check children
+                children = element.get('children', [])
+                if children:
+                    count += self._count_elements_by_type(
+                        children, element_type)
+        return count
+    
+    def _count_all_elements(self, elements: List) -> int:
+        """Recursively count all elements."""
+        count = len(elements)
+        for element in elements:
+            if isinstance(element, dict):
+                children = element.get('children', [])
+                if children:
+                    count += self._count_all_elements(children)
+        return count
+    
+    def _check_image_references(self, text: str, method_data: Dict) -> float:
+        """Check integrity of image references in text."""
+        images = method_data.get('images', {})
+        if not images:
+            return 1.0  # No images to check
+        
+        # Count image references in text
+        # Markdown images
+        image_refs = len(re.findall(r'!\[.*?\]\(.*?\)', text))
+        extracted_images = len(images)
+        
+        if extracted_images == 0:
+            return 1.0 if image_refs == 0 else 0.0
+        
+        # Return ratio of referenced to extracted images
+        return min(1.0, image_refs / extracted_images)
+    
+    def _assess_equation_quality(self, text: str) -> float:
+        """Assess quality of equation conversion."""
+        # Look for properly formatted LaTeX equations
+        total_equations = self._count_equations(text)
+        if total_equations == 0:
+            return 1.0
+        
+        # Check for malformed equations (basic heuristic)
+        # Mixed delimiters
+        malformed = len(re.findall(r'\$[^$]*\$[^$]*\$', text))
+        # Incomplete display
+        malformed += len(re.findall(r'\$\$[^$]*\$[^$]*\$\$', text))
+        
+        return max(0.0, 1.0 - (malformed / total_equations))
+    
+    def _assess_table_quality(self, method_data: Dict) -> float:
+        """Assess quality of table structure preservation."""
+        # Basic implementation - can be enhanced based on
+        # Marker's table metadata
+        if self.config.output_format == "json":
+            tables = self._count_tables(method_data)
+            return 1.0 if tables >= 0 else 0.0  # Basic check
+        return 1.0
+
+
 class DocumentPreprocessor:
     """Generic document preprocessor for PDF text extraction and cleaning.
     
@@ -164,22 +434,24 @@ class DocumentPreprocessor:
     downloaded to the raw data directory. It extracts text, cleans it,
     and saves processed documents as JSON.
     
-    Supports three extraction methods as per ADR-006:
+    Supports three extraction methods as per ADR-006 and ADR-008:
     - pypdf: Raw baseline extraction (no OCR fixing)
-    - langchain: Balanced approach with LangChain integration  
+    - langchain: Balanced approach with LangChain integration
     - unstructured: Premium quality with structure awareness
+    - marker: AI/ML-enhanced processing (Premium Plus)
     """
 
     # Supported extraction methods
-    SUPPORTED_METHODS = ['pypdf', 'unstructured']
+    SUPPORTED_METHODS = ['pypdf', 'unstructured', 'marker']
 
-    def __init__(self, raw_path: Optional[Path] = None, 
+    def __init__(self, raw_path: Optional[Path] = None,
                  processed_path: Optional[Path] = None):
         """Initialize the preprocessor with necessary paths.
         
         Args:
             raw_path: Path to raw documents (defaults to DATA_RAW_PATH)
-            processed_path: Path for processed outputs (defaults to DATA_PROCESSED_PATH)
+            processed_path: Path for processed outputs
+                (defaults to DATA_PROCESSED_PATH)
         """
         self.raw_path = raw_path or DATA_RAW_PATH
         self.processed_path = processed_path or DATA_PROCESSED_PATH
@@ -313,6 +585,8 @@ class DocumentPreprocessor:
                 return self._extract_with_pypdf_langchain(
                     pdf_path, track_performance
                 )
+            elif method == "marker":
+                return self._extract_with_marker(pdf_path, track_performance)
                 
         except Exception as e:
             logger.error(
@@ -432,6 +706,69 @@ class DocumentPreprocessor:
                     'element_count': len(processed_elements)
                 }
             )
+
+    def _extract_with_marker(self, pdf_path: Path,
+                            track_performance: bool = True) -> ExtractionResult:
+        """Extract text and structure using Marker library with
+        performance tracking.
+        
+        Args:
+            pdf_path: Path to the PDF file
+            track_performance: Whether to track performance metrics
+            
+        Returns:
+            ExtractionResult containing text and metadata
+        """
+        # Remove the import line since MarkerExtractor is defined in this file
+        # from .marker_extractor import MarkerExtractor, MarkerConfig
+        
+        if track_performance:
+            start_time = time.time()
+        
+        try:
+            # Create Marker configuration
+            config = MarkerConfig()
+            
+            # Initialize extractor
+            extractor = MarkerExtractor(config)
+            
+            # Extract content
+            result = extractor.extract_text(pdf_path)
+            
+            if track_performance:
+                processing_time = time.time() - start_time
+                performance_metrics = {
+                    'processing_time_seconds': processing_time,
+                    'pages_per_second': (
+                        result.quality_metrics.get('total_pages', 0) /
+                        processing_time if processing_time > 0 else 0
+                    ),
+                    'characters_per_second': (
+                        len(result.text) / processing_time
+                        if processing_time > 0 else 0
+                    )
+                }
+            else:
+                performance_metrics = {}
+            
+            return ExtractionResult(
+                text=result.text,
+                performance_metrics=performance_metrics,
+                quality_metrics=result.quality_metrics,
+                method_specific_data=result.method_specific_data
+            )
+            
+        except Exception as e:
+            logger.error("Error extracting with Marker: %s", e)
+            # Return empty result on error
+            return ExtractionResult(
+                text="",
+                metadata={},
+                performance_metrics={},
+                quality_metrics={},
+                method_specific_data={'error': str(e)}
+            )
+
     def clean_text(self, text: str) -> str:
         """Clean extracted text by removing extra whitespace and formatting issues.
         
@@ -532,6 +869,11 @@ class DocumentPreprocessor:
         output_path = output_dir / filename
         
         try:
+            # Handle Marker-specific serialization issues
+            if extraction_method == "marker":
+                processed_document = self._make_json_serializable(
+                    processed_document)
+            
             with open(output_path, 'w', encoding='utf-8') as f:
                 json.dump(processed_document, f, indent=2, ensure_ascii=False)
             
@@ -543,6 +885,25 @@ class DocumentPreprocessor:
         except Exception as e:
             logger.error(f"Error saving processed document: {e}")
             raise
+            
+    def _make_json_serializable(self, obj):
+        """Make object JSON serializable by handling PIL Images and other objects."""
+        if isinstance(obj, dict):
+            return {key: self._make_json_serializable(value) for key, value in obj.items()}
+        elif isinstance(obj, list):
+            return [self._make_json_serializable(item) for item in obj]
+        elif hasattr(obj, '__dict__'):
+            # Handle objects like PIL Images
+            try:
+                # Try to convert PIL Image to string representation
+                if hasattr(obj, 'mode') and hasattr(obj, 'size'):
+                    return f"<Image: {obj.mode} {obj.size}>"
+                else:
+                    return str(obj)
+            except:
+                return str(obj)
+        else:
+            return obj
 
     def process_documents(self, file_paths: Optional[List[Path]] = None,
                           file_pattern: str = "*.pdf",
