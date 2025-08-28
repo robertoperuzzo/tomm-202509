@@ -65,7 +65,9 @@ This project demonstrates various chunking strategies for improving vector index
 ### 1. Data Preparation
 
 - Download ArXiv papers to `data/raw/`
-- Run preprocessor scripts to extract text and metadata
+- Run preprocessor scripts to extract text and metadata using two methods:
+  - **pypdf**: Fast extraction using LangChain's PyPDFParser
+  - **unstructured**: Premium quality with structure awareness
 - Store processed data in `data/processed/`
 
 ### 2. Chunker Strategies
@@ -93,8 +95,8 @@ Implement and test different chunker approaches:
 
 ### Python Dependencies
 
-- **Unstructured**: PDF processing and element-based chunking
-- **LangChain**: Text splitters and semantic chunking (includes tokenization)
+- **Unstructured**: Premium PDF processing and element-based chunking
+- **LangChain**: Text splitters, semantic chunking, and PDF parsing (PyPDFParser)
 - **Typesense**: Vector indexing and search engine
 - **FastAPI**: Backend API framework
 

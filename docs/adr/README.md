@@ -12,7 +12,7 @@ This directory contains Architecture Decision Records for the Chunking Strategie
 | [ADR-004](ADR-004-unit-testing-implementation.md)            | Unit Testing Implementation with pytest Framework                    | 2025-08-27 | Accepted |
 | [ADR-005](ADR-005-unstructured-io-integration.md)            | Unstructured.io Integration for Enhanced Document Processing         | 2025-08-27 | Accepted |
 | [ADR-006](ADR-006-pdf-extraction-standardization.md)         | PDF Extraction Method Standardization                                | 2025-08-27 | Accepted |
-| [ADR-007](ADR-007-remove-redundant-pypdf-method.md)          | Remove Redundant PyPDF Extraction Method                             | 2025-08-28 | Proposed |
+| [ADR-007](ADR-007-remove-redundant-pypdf-method.md)          | Remove Redundant PyPDF Extraction Method                             | 2025-08-28 | Accepted |
 
 ## ADR Template
 
@@ -50,6 +50,6 @@ The ADRs represent the evolution of the preprocessing system:
 4. **ADR-004**: Added comprehensive unit testing with pytest framework
 5. **ADR-005**: Integrated Unstructured.io for enhanced document structure detection
 6. **ADR-006**: Standardized PDF extraction methods (pypdf, langchain, unstructured)
-7. **ADR-007**: Proposed removal of redundant pypdf method in favor of LangChain wrapper
+7. **ADR-007**: Removed redundant pypdf method, simplified to two-method approach (pypdf via LangChain, unstructured)
 
 Each decision builds upon previous ones while addressing specific architectural needs and user feedback.

@@ -4,10 +4,13 @@ This module handles processing and cleaning documents from any source.
 It extracts text content and metadata from PDF files and stores them as JSON.
 Documents should be downloaded by specialized downloaders into data/raw folder.
 
-Supports three PDF extraction methods as per ADR-006:
-1. pypdf - Raw baseline extraction (no OCR fixing)
-2. LangChain PyPDFParser - Balanced approach with LangChain integration
-3. Unstructured.io - Premium quality with structure awareness
+Supports two PDF extraction methods as per ADR-007:
+1. pypdf - Fast extraction using LangChain's PyPDFParser (wraps pypdf lib)
+2. unstructured - Premium quality with structure awareness using Unstructured
+
+Note: Direct pypdf extraction was removed in ADR-007 due to redundancy with
+LangChain's PyPDFParser which provides same functionality with better
+integration.
 """
 
 import json
@@ -29,8 +32,8 @@ from rich.progress import (
     TaskProgressColumn
 )
 
-# PDF processing libraries
-from pypdf import PdfReader
+# PDF processing libraries - no longer needed for direct pypdf
+# from pypdf import PdfReader
 
 # LangChain for PDF parsing
 try:
@@ -168,7 +171,7 @@ class DocumentPreprocessor:
     """
 
     # Supported extraction methods
-    SUPPORTED_METHODS = ['pypdf', 'langchain', 'unstructured']
+    SUPPORTED_METHODS = ['pypdf', 'unstructured']
 
     def __init__(self, raw_path: Optional[Path] = None, 
                  processed_path: Optional[Path] = None):
@@ -306,10 +309,10 @@ class DocumentPreprocessor:
         try:
             if method == "unstructured":
                 return self._extract_with_unstructured(pdf_path, track_performance)
-            elif method == "langchain":
-                return self._extract_with_langchain(pdf_path, track_performance)
             elif method == "pypdf":
-                return self._extract_with_pypdf(pdf_path, track_performance)
+                return self._extract_with_pypdf_langchain(
+                    pdf_path, track_performance
+                )
                 
         except Exception as e:
             logger.error(
@@ -320,39 +323,15 @@ class DocumentPreprocessor:
             # This ensures each method is tested independently
             raise
 
-    def _extract_with_pypdf(self, pdf_path: Path, 
-                            track_performance: bool = True) -> ExtractionResult:
-        """Raw pypdf extraction with NO OCR fixing - demonstrates baseline quality."""
-        with PerformanceTracker() as tracker:
-            text_parts = []
-            pages_processed = 0
-            
-            with open(pdf_path, 'rb') as file:
-                reader = PdfReader(file)
-                pages_processed = len(reader.pages)
-                
-                for page in reader.pages:
-                    text = page.extract_text()
-                    if text.strip():
-                        text_parts.append(text)
-            
-            # Join text without any OCR fixing (raw extraction)
-            raw_text = "\n".join(text_parts)
-            
-            # Calculate metrics
-            performance_metrics = tracker.get_metrics(len(raw_text), pages_processed) if track_performance else {}
-            quality_metrics = QualityAnalyzer.analyze_text(raw_text)
-            
-            return ExtractionResult(
-                text=raw_text,
-                performance_metrics=performance_metrics,
-                quality_metrics=quality_metrics,
-                method_specific_data={"extraction_method": "pypdf", "pages_processed": pages_processed}
-            )
-
-    def _extract_with_langchain(self, pdf_path: Path,
-                               track_performance: bool = True) -> ExtractionResult:
-        """LangChain PyPDFParser extraction with Document objects."""
+    def _extract_with_pypdf_langchain(self, pdf_path: Path,
+                                      track_performance: bool = True
+                                      ) -> ExtractionResult:
+        """PyPDF extraction via LangChain PyPDFParser wrapper.
+        
+        Uses LangChain's PyPDFParser which provides a standardized interface
+        around the pypdf library with Document objects and better integration
+        for future LangChain workflows.
+        """
         if not LANGCHAIN_AVAILABLE:
             raise ImportError("LangChain is not available")
         
@@ -384,7 +363,8 @@ class DocumentPreprocessor:
                 performance_metrics=performance_metrics,
                 quality_metrics=quality_metrics,
                 method_specific_data={
-                    "extraction_method": "langchain",
+                    "extraction_method": "pypdf",
+                    "implementation": "langchain_pypdf_parser",
                     "pages_processed": pages_processed,
                     "document_objects": len(documents)
                 }

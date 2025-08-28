@@ -2,8 +2,8 @@
 """
 Simple PDF Preprocessing Script
 
-This script demonstrates the ADR-006 implementation by processing PDFs
-in the data/raw/ directory using the three standardized extraction methods.
+This script demonstrates the ADR-007 implementation by processing PDFs
+in the data/raw/ directory using the two standardized extraction methods.
 """
 
 import sys
@@ -16,8 +16,8 @@ from src.preprocessor.document_preprocessor import DocumentPreprocessor
 
 
 def main():
-    """Process PDFs with all three methods."""
-    print("PDF Preprocessing Demo - ADR-006 Implementation")
+    """Process PDFs with both available methods."""
+    print("PDF Preprocessing Demo - ADR-007 Implementation")
     print("=" * 50)
     
     # Initialize preprocessor
@@ -33,8 +33,8 @@ def main():
     for doc in documents:
         print(f"  - {doc.name}")
     
-    # Process with all three methods
-    methods = ['pypdf', 'langchain', 'unstructured']
+    # Process with both available methods
+    methods = ['pypdf', 'unstructured']
     all_results = {}
     
     for method in methods:
@@ -87,7 +87,6 @@ def main():
     print(f"\nTotal processed: {total_processed} documents")
     print(f"\nOutput directories:")
     print(f"  data/processed/pypdf/")
-    print(f"  data/processed/langchain/")
     print(f"  data/processed/unstructured/")
     
     # Compare methods on first document

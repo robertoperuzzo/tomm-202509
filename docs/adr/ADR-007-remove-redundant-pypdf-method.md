@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted - Implemented
 
 ## Context
 
@@ -121,4 +121,4 @@ For existing users of the direct `pypdf` method:
 
 **Decision Date**: 2025-08-28  
 **Participants**: Development Team  
-**Status**: Proposed - Pending Implementation
+**Status**: Accepted - Implementation Complete
