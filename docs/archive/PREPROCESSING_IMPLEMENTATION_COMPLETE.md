@@ -26,7 +26,7 @@ I have successfully implemented **Point 3: "Implement data preprocessing pipelin
 
 ✅ **Text Extraction and Cleaning**
 
-- Multiple PDF processing methods (pdfplumber, PyMuPDF, pypdf)
+- Multiple PDF processing methods (pdfplumber, PyMuPDF, PyPDF)
 - Advanced text cleaning (whitespace, page numbers, formatting)
 - Academic paper structure preservation
 

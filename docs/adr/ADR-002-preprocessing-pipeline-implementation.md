@@ -60,7 +60,7 @@ We implemented a comprehensive preprocessing pipeline with the following archite
 
 ### Technical Implementation:
 
-- **PDF Libraries**: pdfplumber (primary), PyMuPDF (fallback), pypdf (secondary fallback)
+- **PDF Libraries**: pdfplumber (primary), PyMuPDF (fallback), PyPDF (secondary fallback)
 - **Text Processing**: Regular expressions for cleaning, Unicode handling
 - **Data Format**: JSON with comprehensive metadata structure
 - **Progress Tracking**: Rich library for professional console output
