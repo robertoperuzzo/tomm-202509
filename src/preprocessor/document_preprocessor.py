@@ -204,6 +204,20 @@ class DocumentPreprocessor:
         
         return f"{clean_name}_{timestamp}.json"
 
+    def _generate_document_id(self, pdf_path: Path) -> str:
+        """Generate document ID from PDF filename for matching processed files.
+        
+        Args:
+            pdf_path: Path to the original PDF file
+            
+        Returns:
+            Document ID string used as prefix for processed files
+        """
+        # Convert original filename to lowercase, remove spaces and special chars
+        original_name = pdf_path.stem.lower()
+        clean_name = re.sub(r'[^a-z0-9]', '', original_name)
+        return clean_name
+
     def discover_documents(self, file_pattern: str = "*.pdf") -> List[Path]:
         """Discover documents in the raw data directory.
         
@@ -302,25 +316,9 @@ class DocumentPreprocessor:
                 "Error extracting text from %s with %s: %s",
                 pdf_path, method, e
             )
-            # Simple fallback chain: unstructured -> langchain -> pypdf
-            fallback_methods = ["unstructured", "langchain", "pypdf"]
-            if method == "unstructured" and not UNSTRUCTURED_AVAILABLE:
-                fallback_methods = ["langchain", "pypdf"]
-            if method == "langchain" and not LANGCHAIN_AVAILABLE:
-                fallback_methods = ["unstructured", "pypdf"]
-            
-            for fallback in fallback_methods:
-                if fallback != method:
-                    try:
-                        logger.info("Trying fallback method: %s", fallback)
-                        return self.extract_text_from_pdf(pdf_path, fallback, track_performance)
-                    except Exception as fallback_e:
-                        logger.warning(
-                            "Fallback method %s also failed: %s",
-                            fallback, fallback_e
-                        )
-                        continue
-            return None
+            # Re-raise the exception instead of falling back to other methods
+            # This ensures each method is tested independently
+            raise
 
     def _extract_with_pypdf(self, pdf_path: Path, 
                             track_performance: bool = True) -> ExtractionResult:
@@ -359,11 +357,15 @@ class DocumentPreprocessor:
             raise ImportError("LangChain is not available")
         
         with PerformanceTracker() as tracker:
+            from langchain_core.document_loaders import Blob
+            
             parser = PyPDFParser()
             
+            # Create a Blob from the PDF file
+            blob = Blob.from_path(pdf_path)
+            
             # Parse PDF into LangChain Documents
-            with open(pdf_path, 'rb') as file:
-                documents = parser.parse(file, {"source": str(pdf_path)})
+            documents = parser.parse(blob)
             
             # Extract text from Document objects
             text_parts = [doc.page_content for doc in documents]
@@ -371,7 +373,10 @@ class DocumentPreprocessor:
             pages_processed = len(documents)
             
             # Calculate metrics
-            performance_metrics = tracker.get_metrics(len(full_text), pages_processed) if track_performance else {}
+            performance_metrics = (
+                tracker.get_metrics(len(full_text), pages_processed)
+                if track_performance else {}
+            )
             quality_metrics = QualityAnalyzer.analyze_text(full_text)
             
             return ExtractionResult(
@@ -637,15 +642,45 @@ class DocumentPreprocessor:
         
         return processed_documents
 
-    def compare_extraction_methods(self, file_path: Path, 
-                                  methods: Optional[List[str]] = None,
-                                  track_performance: bool = True) -> Dict[str, Any]:
-        """Compare all three extraction methods on a single document.
+    def _find_processed_json(self, original_file_path: Path, 
+                           method: str) -> Optional[Path]:
+        """Find the processed JSON file for a given PDF and method.
         
         Args:
-            file_path: PDF file to process with all methods
+            original_file_path: Original PDF file path
+            method: Processing method (pypdf, langchain, unstructured)
+            
+        Returns:
+            Path to the processed JSON file or None if not found
+        """
+        method_dir = self.processed_path / method
+        if not method_dir.exists():
+            return None
+        
+        # Generate expected filename pattern
+        expected_prefix = self._generate_document_id(original_file_path)
+        
+        # Look for files that start with this prefix
+        for json_file in method_dir.glob(f"{expected_prefix}*.json"):
+            return json_file
+            
+        return None
+
+    def compare_extraction_methods(self, file_path: Path,
+                                   methods: Optional[List[str]] = None,
+                                   track_performance: bool = True
+                                   ) -> Dict[str, Any]:
+        """Compare all three extraction methods on a single document.
+        
+        This method reads from existing JSON files in the processed directories
+        instead of re-processing the document.
+        
+        Args:
+            file_path: PDF file to compare (used to find corresponding 
+                      JSON files)
             methods: List of methods to compare (defaults to all three)
-            track_performance: Whether to track performance metrics
+            track_performance: Whether to track performance metrics 
+                              (kept for compatibility)
             
         Returns:
             Comparison results with metrics for each method
@@ -655,24 +690,45 @@ class DocumentPreprocessor:
         
         results = {}
         
-        console.print(f"[blue]Comparing extraction methods for {file_path.name}[/blue]")
+        console.print(
+            f"[blue]Comparing extraction methods for {file_path.name}[/blue]"
+        )
         
         for method in methods:
-            console.print(f"  Processing with {method}...")
+            console.print(f"  Loading results for {method}...")
             try:
-                extraction_result = self.extract_text_from_pdf(file_path, method, track_performance)
-                if extraction_result:
+                # Find the corresponding JSON file for this method
+                json_file = self._find_processed_json(file_path, method)
+                if json_file and json_file.exists():
+                    with open(json_file, 'r', encoding='utf-8') as f:
+                        processed_data = json.load(f)
+                    
+                    # Extract the metrics we need for comparison
+                    text_preview = processed_data.get('full_text', '')[:500]
+                    if len(processed_data.get('full_text', '')) > 500:
+                        text_preview += "..."
+                    
                     results[method] = {
                         'success': True,
-                        'text_preview': extraction_result.text[:500] + "..." if len(extraction_result.text) > 500 else extraction_result.text,
-                        'performance_metrics': extraction_result.performance_metrics,
-                        'quality_metrics': extraction_result.quality_metrics,
-                        'method_specific_data': extraction_result.method_specific_data
+                        'text_preview': text_preview,
+                        'performance_metrics': processed_data.get(
+                            'performance_metrics', {}
+                        ),
+                        'quality_metrics': processed_data.get(
+                            'quality_metrics', {}
+                        ),
+                        'method_specific_data': {}  # Not stored in JSON files
                     }
                 else:
-                    results[method] = {'success': False, 'error': 'No extraction result'}
+                    results[method] = {
+                        'success': False, 
+                        'error': f'No processed JSON file found for {method}'
+                    }
             except Exception as e:
-                results[method] = {'success': False, 'error': str(e)}
+                results[method] = {
+                    'success': False, 
+                    'error': f'Error reading JSON file: {str(e)}'
+                }
         
         # Create comparison report
         comparison_report = {
@@ -684,10 +740,14 @@ class DocumentPreprocessor:
         }
         
         return comparison_report
-    
-    def _generate_comparison_summary(self, results: Dict[str, Any]) -> Dict[str, Any]:
+
+    def _generate_comparison_summary(self, results: Dict[str, Any]
+                                    ) -> Dict[str, Any]:
         """Generate summary statistics from method comparison results."""
-        successful_methods = [method for method, result in results.items() if result.get('success')]
+        successful_methods = [
+            method for method, result in results.items()
+            if result.get('success')
+        ]
         
         if not successful_methods:
             return {'error': 'No methods succeeded'}
@@ -715,10 +775,19 @@ class DocumentPreprocessor:
                 }
         
         # Find best performing method
-        fastest_method = min(performance_summary.keys(), 
-                           key=lambda x: performance_summary[x]['processing_time']) if performance_summary else None
-        highest_quality = max(quality_summary.keys(),
-                            key=lambda x: quality_summary[x]['readability_score']) if quality_summary else None
+        fastest_method = None
+        if performance_summary:
+            fastest_method = min(
+                performance_summary.keys(),
+                key=lambda x: performance_summary[x]['processing_time']
+            )
+        
+        highest_quality = None
+        if quality_summary:
+            highest_quality = max(
+                quality_summary.keys(),
+                key=lambda x: quality_summary[x]['readability_score']
+            )
         
         return {
             'successful_methods': successful_methods,
@@ -726,11 +795,14 @@ class DocumentPreprocessor:
             'quality_comparison': quality_summary,
             'fastest_method': fastest_method,
             'highest_quality_method': highest_quality,
-            'recommendation': self._recommend_method(performance_summary, quality_summary)
+            'recommendation': self._recommend_method(
+                performance_summary, quality_summary
+            )
         }
     
-    def _recommend_method(self, performance_summary: Dict, quality_summary: Dict) -> str:
-        """Recommend best method based on performance and quality trade-offs."""
+    def _recommend_method(self, performance_summary: Dict,
+                          quality_summary: Dict) -> str:
+        """Recommend best method based on performance and quality."""
         if not performance_summary or not quality_summary:
             return "unstructured"  # Default fallback
         
