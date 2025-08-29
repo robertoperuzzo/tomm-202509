@@ -442,7 +442,7 @@ class DocumentPreprocessor:
     """
 
     # Supported extraction methods
-    SUPPORTED_METHODS = ['pypdf', 'unstructured', 'marker']
+    SUPPORTED_METHODS = ['pypdf', 'marker', 'unstructured']
 
     def __init__(self, raw_path: Optional[Path] = None,
                  processed_path: Optional[Path] = None):
