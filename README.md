@@ -91,6 +91,85 @@ Implement and test different chunker approaches:
 - Measure relevance scores, search speed, and chunk quality
 - Generate comparative analysis reports
 
+## 📋 Usage Commands
+
+### Vector Indexing with Typesense
+
+The project includes a complete vector indexing system for semantic search. All commands should be run from within the dev container.
+
+#### Prerequisites
+
+Ensure Typesense is running (run this outside the dev container):
+
+```bash
+docker compose up -d typesense
+
+# Verify Typesense is healthy
+curl http://localhost:8108/health  # Should return {"ok":true}
+```
+
+#### Available Commands
+
+```bash
+# 1. List available extraction methods
+python -m src.indexer --list-methods
+
+# 2. Index a specific extraction method + chunking strategy (fast testing)
+python -m src.indexer --extraction-method marker --chunking-strategy fixed_size --max-documents 2
+
+# 3. Index all combinations (development mode - recommended)
+python -m src.indexer --index-all --max-documents 5
+
+# 4. Index all combinations (production mode - all documents)
+python -m src.indexer --index-all --max-documents -1
+
+# 5. Show collection statistics and document counts
+python -m src.indexer --stats
+
+# 6. Force recreate existing collections
+python -m src.indexer --index-all --max-documents 5 --force-recreate
+
+# 7. Enable debug logging for troubleshooting
+python -m src.indexer --index-all --max-documents 2 --log-level DEBUG
+```
+
+#### Available Extraction Methods
+
+- `marker`: High-quality extraction with AI/ML capabilities
+- `pypdf`: Fast extraction using LangChain's PyPDFParser
+- `unstructured`: Premium quality with structure awareness
+- `comparative_analysis`: Analysis results from method comparisons
+
+#### Available Chunking Strategies
+
+- `fixed_size`: Token-aware splitting (512 tokens, 50 overlap)
+- `sliding_langchain`: Document-structure aware (1000 chars, 100 overlap)
+- `sliding_unstructured`: Element-based chunking (800 chars, 80 overlap)
+- `semantic`: Natural breakpoint identification (200-1500 chars)
+
+#### Performance Guidelines
+
+- **Development/Testing**: Use `--max-documents 2-10` for fast iteration (2-5 minutes)
+- **Full Dataset**: Use `--max-documents -1` for production indexing (may take hours)
+- **Model Download**: First run downloads `sentence-transformers/all-MiniLM-L6-v2` (~91MB)
+- **Memory Usage**: Ensure 4GB+ RAM available for embedding generation
+
+#### Troubleshooting
+
+```bash
+# Connection issues
+curl http://typesense:8108/health  # From within dev container
+
+# Collection issues
+python -m src.indexer --stats  # Check existing collections
+
+# Reset collections
+python -m src.indexer --extraction-method marker --chunking-strategy fixed_size --max-documents 2 --force-recreate
+
+# Check logs
+tail -f /workspace/logs/indexer.log
+```
+
 ## 🛠️ Available Tools and Libraries
 
 ### Python Dependencies

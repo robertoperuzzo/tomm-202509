@@ -37,6 +37,7 @@ flake8>=6.1.0
 pylint>=3.0.3
 
 # Environment and configuration
+numpy>=2.3.0
 python-dotenv>=1.0.0
 pyyaml>=6.0.1
 
