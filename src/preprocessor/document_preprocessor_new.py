@@ -197,15 +197,6 @@ class DocumentPreprocessor:
         method_dir.mkdir(parents=True, exist_ok=True)
         return method_dir
 
-    def _generate_output_filename(self, file_path: Path) -> str:
-        """Generate filename based on original file name and timestamp."""
-        warnings.warn(
-            "This method is deprecated. Use MetadataExtractor.generate_output_filename instead.",
-            DeprecationWarning,
-            stacklevel=2
-        )
-        return MetadataExtractor.generate_output_filename(file_path)
-
     def discover_documents(self, file_pattern: str = "*") -> List[Path]:
         """Discover documents in the raw data directory.
 

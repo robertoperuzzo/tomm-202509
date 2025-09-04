@@ -13,8 +13,10 @@ This directory contains Architecture Decision Records for the Chunking Strategie
 | [ADR-005](ADR-005-unstructured-io-integration.md)                    | Unstructured.io Integration for Enhanced Document Processing         | 2025-08-27 | Accepted |
 | [ADR-006](ADR-006-pdf-extraction-standardization.md)                 | PDF Extraction Method Standardization                                | 2025-08-27 | Accepted |
 | [ADR-007](ADR-007-remove-redundant-pypdf-method.md)                  | Remove Redundant PyPDF Extraction Method                             | 2025-08-28 | Accepted |
-| [ADR-008](ADR-008-marker-integration-for-enhanced-pdf-processing.md) | Integration of Marker Library for Enhanced PDF Processing            | 2025-08-28 | Proposed |
+| [ADR-008](ADR-008-marker-integration-for-enhanced-pdf-processing.md) | Integration of Marker Library for Enhanced PDF Processing            | 2025-08-28 | Accepted |
 | [ADR-009](ADR-009-chunking-strategies-prototype-implementation.md)   | Chunking Strategies Prototype Implementation and Component Testing   | 2025-08-28 | Proposed |
+| [ADR-010](ADR-010-typesense-vector-indexing-implementation.md)       | Typesense Vector Indexing Implementation                             | 2025-08-28 | Accepted |
+| [ADR-011](ADR-011-markitdown-multi-format-document-extraction.md)    | MarkItDown Integration with Modular Architecture Refactoring         | 2025-09-04 | Accepted |
 
 ## ADR Template
 
@@ -53,10 +55,9 @@ The ADRs represent the evolution of the preprocessing system:
 5. **ADR-005**: Integrated Unstructured.io for enhanced document processing capabilities
 6. **ADR-006**: Standardized PDF extraction methods with performance vs quality trade-offs
 7. **ADR-007**: Removed redundant PyPDF method, keeping LangChain PyPDFParser
-8. **ADR-008**: (Proposed) Integration of Marker library for enhanced PDF processing
+8. **ADR-008**: Integrated Marker library for AI/ML-enhanced PDF processing
 9. **ADR-009**: (Proposed) Chunking strategies prototype implementation for comparative analysis
-10. **ADR-005**: Integrated Unstructured.io for enhanced document structure detection
-11. **ADR-006**: Standardized PDF extraction methods (pypdf, langchain, unstructured)
-12. **ADR-007**: Removed redundant pypdf method, simplified to two-method approach (pypdf via LangChain, unstructured)
+10. **ADR-010**: Implemented Typesense vector indexing for semantic search capabilities
+11. **ADR-011**: **Major architectural refactoring** - Modular extractor architecture with MarkItDown integration
 
 Each decision builds upon previous ones while addressing specific architectural needs and user feedback.

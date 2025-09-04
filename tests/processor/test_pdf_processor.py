@@ -1,6 +1,6 @@
 """Comprehensive preprocessing tests using real PDF data.
 
-This test module implements the ADR-006 and ADR-008 three-method approach:
+This test module implements the ADR-006 and ADR-008 compliant three-method approach:
 - pypdf: Raw baseline extraction (no OCR fixing)
 - unstructured: Premium quality with structure awareness
 - marker: AI/ML-enhanced processing (Premium Plus)
@@ -49,7 +49,7 @@ import pytest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from src.preprocessor.document_preprocessor import (
+from src.preprocessor import (
     DocumentPreprocessor,
     ExtractionResult,
     PerformanceTracker,
@@ -76,14 +76,16 @@ def preprocessor(tmp_path):
 
 @pytest.fixture
 def supported_methods():
-    """List of supported extraction methods per ADR-006 and ADR-008."""
-    return ["pypdf", "marker", "unstructured"]
+    """List of supported extraction methods per ADR-011."""
+    return ["pypdf", "unstructured", "marker", "markitdown"]
 
 
 @pytest.fixture
 def mock_unstructured_partition():
     """Mock unstructured partition_pdf function for fast testing."""
-    with patch('src.preprocessor.document_preprocessor.partition_pdf') as mock:
+    with patch(
+        'src.preprocessor.extractors.unstructured_extractor.partition_pdf'
+    ) as mock:
         # Create multiple elements to simulate a real document
         elements = []
         for i in range(5):
@@ -107,8 +109,8 @@ def mock_unstructured_partition():
 @pytest.fixture
 def mock_marker_extraction():
     """Mock marker extraction components for fast testing."""
-    with patch('src.preprocessor.document_preprocessor.MarkerExtractor') as mock_extractor, \
-            patch('src.preprocessor.document_preprocessor.MarkerConfig') as mock_config:
+    with patch('src.preprocessor.extractors.marker_extractor.MarkerExtractor') as mock_extractor, \
+            patch('src.preprocessor.extractors.marker_extractor.MarkerConfig') as mock_config:
 
         # Mock the extractor result
         mock_result = Mock()
@@ -179,7 +181,7 @@ class TestThreeMethodExtraction:
     def test_supported_methods_list(self, preprocessor, supported_methods):
         """Test that preprocessor has correct supported methods."""
         assert preprocessor.SUPPORTED_METHODS == supported_methods
-        assert len(preprocessor.SUPPORTED_METHODS) == 3
+        assert len(preprocessor.SUPPORTED_METHODS) == 4
 
     def test_pypdf_raw_extraction(self, preprocessor, test_pdf_path):
         """Test pypdf raw extraction (no OCR fixing) - ADR-006."""
@@ -257,7 +259,7 @@ class TestThreeMethodExtraction:
         mock_extractor, mock_config = mock_marker_extraction
 
         try:
-            from src.preprocessor.document_preprocessor import (
+            from src.preprocessor import (
                 MarkerConfig, MarkerExtractor)
 
             # Test with mocked components
@@ -391,41 +393,38 @@ class TestBatchProcessing:
 
         # Process with pypdf method
         processed_docs = preprocessor.process_documents(
-            extraction_method="pypdf",
-            track_performance=True,
-            save_individual=True
+            method="pypdf",
+            track_performance=True
         )
-
-        # Verify method-specific directory was created during processing
-        pypdf_dir = preprocessor.processed_path / "pypdf"
 
         # If pypdf failed to extract text, directory might not be created
         if processed_docs and len(processed_docs) > 0:
-            assert pypdf_dir.exists()
             doc = processed_docs[0]
-            assert doc["extraction_method"] == "pypdf"
-            assert "performance_metrics" in doc
-            assert "quality_metrics" in doc
+            assert doc["status"] == "success"
+            assert doc["method_used"] == "pypdf"
 
-            # Check file was saved in correct location
-            json_files = list(pypdf_dir.glob("*.json"))
-            assert len(json_files) > 0
+            # Test that we can access extraction results
+            extraction_result = doc["extraction_result"]
+            assert extraction_result is not None
+            assert isinstance(extraction_result.text, str)
+            assert len(extraction_result.text) > 0
         else:
             # pypdf may fail on complex PDFs - this is acceptable
             print(f"pypdf failed to extract text from {test_pdf_path.name}")
             print("This is acceptable - some PDFs are challenging for pypdf")
 
 
-class TestADR006Compliance:
-    """Verify compliance with ADR-006 requirements."""
+class TestADR011Compliance:
+    """Verify compliance with ADR-011 requirements."""
 
-    def test_three_methods_only(self, preprocessor, supported_methods):
-        """Verify exactly three methods are supported."""
-        assert len(preprocessor.SUPPORTED_METHODS) == 3
+    def test_four_methods_supported(self, preprocessor, supported_methods):
+        """Verify exactly four methods are supported per ADR-011."""
+        assert len(preprocessor.SUPPORTED_METHODS) == 4
         assert set(preprocessor.SUPPORTED_METHODS) == set(supported_methods)
         assert "pypdf" in preprocessor.SUPPORTED_METHODS
         assert "unstructured" in preprocessor.SUPPORTED_METHODS
         assert "marker" in preprocessor.SUPPORTED_METHODS
+        assert "markitdown" in preprocessor.SUPPORTED_METHODS
 
     def test_directory_structure_compliance(self, preprocessor):
         """Verify directory structure matches ADR-006 specification."""
@@ -502,7 +501,7 @@ class TestThreeMethodExtractionIntegration:
 
         # Test that Marker classes can be imported and instantiated
         try:
-            from src.preprocessor.document_preprocessor import (
+            from src.preprocessor import (
                 MarkerConfig, MarkerExtractor)
 
             config = MarkerConfig()
