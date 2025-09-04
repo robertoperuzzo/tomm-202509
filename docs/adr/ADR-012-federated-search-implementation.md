@@ -32,16 +32,13 @@ We will implement a **simple vanilla InstantSearch.js application** with federat
 
 ```
 frontend/
-├── public/
-│   └── index.html                        # Main HTML structure with CDN links
-├── src/
-│   ├── App.js                            # Main application with all logic
-│   ├── styles/
-│   │   └── main.css                      # Custom grid and layout styles
-│   └── assets/
-│       └── favicon.ico                   # Basic assets
-├── package.json                          # Simple dev server dependencies only
-└── Dockerfile                            # Container with static file server
+├── index.html                            # Main HTML structure with CDN links
+├── js/
+│   └── app.js                            # Main application logic (vanilla JS)
+├── css/
+│   └── main.css                          # Custom grid and layout styles
+├── README.md                             # Project documentation
+└── Dockerfile                            # nginx-based static file server
 ```
 
 ### 2. Federated Search Strategy
@@ -113,17 +110,17 @@ const typesenseInstantsearchAdapter = new TypesenseInstantSearchAdapter({
 
 #### Core Technologies:
 
-- **react-instantsearch@7.16.2** (React components for search UI)
-- **typesense-instantsearch-adapter** (loaded via CDN or npm)
-- **Simple HTTP Server** for serving static files
+- **InstantSearch.js** (vanilla JavaScript widgets via CDN)
+- **typesense-instantsearch-adapter** (loaded via CDN)
+- **nginx Alpine** for serving static files (lightweight Docker container)
 - **Algolia CSS Base Themes** (reset + satellite) for professional styling foundation
 
 #### Key Implementation Pattern:
 
-**React-Based Approach with CDN styling:**
+**Vanilla JavaScript Approach with CDN dependencies:**
 
 ```html
-<!-- public/index.html -->
+<!-- index.html -->
 <!DOCTYPE html>
 <html>
   <head>
@@ -137,8 +134,12 @@ const typesenseInstantsearchAdapter = new TypesenseInstantSearchAdapter({
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/instantsearch.css@8.5.1/themes/satellite-min.css"
     />
+    <!-- InstantSearch.js -->
+    <script src="https://cdn.jsdelivr.net/npm/instantsearch.js@4.63.0/dist/instantsearch.production.min.js"></script>
+    <!-- Typesense InstantSearch Adapter -->
+    <script src="https://cdn.jsdelivr.net/npm/typesense-instantsearch-adapter@2.8.0/dist/typesense-instantsearch-adapter.min.js"></script>
     <!-- Custom Grid and Layout Styles -->
-    <link rel="stylesheet" href="src/styles/main.css" />
+    <link rel="stylesheet" href="css/main.css" />
   </head>
   <body>
     <div id="searchbox-container">
@@ -147,7 +148,7 @@ const typesenseInstantsearchAdapter = new TypesenseInstantSearchAdapter({
 
     <div id="search-results-container">
       <div class="facets-container">
-        <!-- Future: Add facets/filters here -->
+        <div id="stats"></div>
       </div>
 
       <div class="search-results-list">
@@ -174,18 +175,13 @@ const typesenseInstantsearchAdapter = new TypesenseInstantSearchAdapter({
       </div>
     </div>
 
-    <div id="root"></div>
+    <script src="js/app.js"></script>
   </body>
 </html>
 ```
 
-```jsx
-// src/App.js - React component with InstantSearch
-import React from "react";
-import { InstantSearch, SearchBox, Hits, Index } from "react-instantsearch";
-import TypesenseInstantSearchAdapter from "typesense-instantsearch-adapter";
-
-// Typesense configuration
+```js
+// js/app.js - Vanilla JavaScript with InstantSearch
 const typesenseInstantsearchAdapter = new TypesenseInstantSearchAdapter({
   server: {
     apiKey: "xyz",
@@ -198,15 +194,66 @@ const typesenseInstantsearchAdapter = new TypesenseInstantSearchAdapter({
     highlight_affix_num_tokens: 4,
   },
   collectionSpecificSearchParameters: {
+    unstructured_fixed_size: { query_by: "content,document_title" },
+    unstructured_semantic: { query_by: "content,document_title" },
+    unstructured_sliding_langchain: { query_by: "content,document_title" },
+    unstructured_sliding_unstructured: { query_by: "content,document_title" },
+  },
+});
+
+const search = instantsearch({
+  indexName: "unstructured_fixed_size",
+  searchClient: typesenseInstantsearchAdapter.searchClient,
+});
+
+// Configure widgets
+search.addWidgets([
+  instantsearch.widgets.searchBox({ container: "#searchbox" }),
+  instantsearch.widgets.stats({ container: "#stats" }),
+  instantsearch.widgets
+    .index({ indexName: "unstructured_fixed_size" })
+    .addWidgets([
+      instantsearch.widgets.hits({
+        container: "#hits-fixed",
+        templates: { item: (hit) => renderHit(hit, "Fixed Size") },
+      }),
+    ]),
+  instantsearch.widgets
+    .index({ indexName: "unstructured_semantic" })
+    .addWidgets([
+      instantsearch.widgets.hits({
+        container: "#hits-semantic",
+        templates: { item: (hit) => renderHit(hit, "Semantic") },
+      }),
+    ]),
+  // ... other indices
+]);
+
+function renderHit(hit, strategyName) {
+  return `
+    <div class="hit">
+      <div class="hit-strategy">${strategyName}</div>
+      <div class="hit-meta">Chunk ${hit.chunk_index} • ${hit.token_count} tokens</div>
+      <div class="hit-content">${hit._highlightResult.content.value}</div>
+      <div class="hit-source">${hit.document_title}</div>
+    </div>
+  `;
+}
+
+search.start();
+```
+
     marker_fixed_size: { query_by: "content,document_title" },
     marker_semantic: { query_by: "content,document_title" },
     marker_sliding_langchain: { query_by: "content,document_title" },
     marker_sliding_unstructured: { query_by: "content,document_title" },
-  },
+
+},
 });
 
 // Hit template component
 const HitTemplate = ({ hit, strategyName }) => (
+
   <div className="hit">
     <div className="hit-strategy">{strategyName}</div>
     <div className="hit-meta">
@@ -221,14 +268,15 @@ const HitTemplate = ({ hit, strategyName }) => (
 );
 
 function App() {
-  return (
-    <InstantSearch
+return (
+<InstantSearch
       searchClient={typesenseInstantsearchAdapter.searchClient}
       indexName="marker_fixed_size"
     >
-      <div id="searchbox-container">
-        <SearchBox placeholder="Search across chunking strategies..." />
-      </div>
+
+<div id="searchbox-container">
+<SearchBox placeholder="Search across chunking strategies..." />
+</div>
 
       <div id="search-results-container">
         <div id="facets-container">
@@ -285,11 +333,13 @@ function App() {
         </div>
       </div>
     </InstantSearch>
-  );
+
+);
 }
 
 export default App;
-```
+
+````
 
 ### 5. Collection Integration
 
@@ -326,7 +376,7 @@ frontend:
     - REACT_APP_TYPESENSE_API_KEY=xyz
   networks:
     - chunker-demo
-```
+````
 
 **Container Workflow:**
 
@@ -336,28 +386,28 @@ frontend:
 
 ## Rationale
 
-### Why React InstantSearch?
+### Why Vanilla JavaScript InstantSearch?
 
-- **Component-Based Architecture**: Clean, reusable components for search widgets
-- **Official React Support**: First-class React integration from Algolia/InstantSearch team
-- **Better State Management**: React handles UI state and re-rendering efficiently
-- **Typesense Compatibility**: Full support via typesense-instantsearch-adapter
-- **Rich Ecosystem**: Extensive widget library and community resources
-- **Development Experience**: Hot reloading, React DevTools, modern tooling
+- **Simplicity**: No complex build tools or frameworks required
+- **Direct Integration**: Official InstantSearch.js vanilla widgets work directly with Typesense
+- **Performance**: Lightweight implementation with minimal overhead
+- **Maintenance**: Easier to understand and modify without framework knowledge
+- **CDN Loading**: All dependencies loaded via CDN for fast development
+- **Browser Compatibility**: Works in all modern browsers without transpilation
 
-### Why Level 1 Structure for React?
+### Why Level 1 Structure for Vanilla JavaScript?
 
 - **Perfect Project Size Match**: Our simple federated search demo fits the "small project" criteria exactly
 - **Single Feature Focus**: One main feature (federated search) doesn't need complex modular organization
-- **Component-Based Organization**: React components naturally organize the UI logic
+- **Vanilla JavaScript Organization**: Simple file separation by type (HTML, CSS, JS)
 - **Clear Separation of Concerns**:
-  - `public/index.html` - Static HTML template (standard convention)
-  - `src/App.js` - Main React component with search configuration
-  - `src/styles/` - Presentation layer separated
-  - `src/assets/` - Static assets
+  - `index.html` - Static HTML structure and dependency loading
+  - `js/app.js` - All application logic and InstantSearch configuration
+  - `css/main.css` - Presentation layer styling
+  - `assets/` - Static assets like favicon
 - **Easy to Navigate**: Minimal files, perfect for quick development and stakeholder demos
-- **Standard Convention**: `public/` for static files, `src/` for source code follows React best practices
-- **Future Migration Path**: Can easily split into multiple components when adding features in ADR-013
+- **Standard Convention**: Follows traditional web development file organization
+- **Future Migration Path**: Can easily add more JavaScript files when adding features in ADR-013
 
 ### Why Federated Search Pattern?
 

@@ -58,20 +58,15 @@ services:
     profiles:
       - production
 
-  # Frontend (will be used later)
+  # Frontend - Vanilla JS with nginx
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
-      - "3000:3000"
+      - "3000:80"
     depends_on:
       - typesense
-    environment:
-      - REACT_APP_TYPESENSE_HOST=typesense
-      - REACT_APP_TYPESENSE_PORT=8108
-      - REACT_APP_TYPESENSE_PROTOCOL=http
-      - REACT_APP_TYPESENSE_API_KEY=xyz
     networks:
       - chunker-demo
 
