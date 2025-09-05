@@ -114,7 +114,143 @@
     text-align: center;
 }
 
-/* Hit (result) styling */
+/* Document-level hit styling */
+.document-hit {
+    padding: 16px;
+    border-bottom: 1px solid #f7fafc;
+    transition: background-color 0.2s ease;
+    margin-bottom: 8px;
+}
+
+.document-hit:hover {
+    background-color: #f8f9fa;
+}
+
+.document-hit:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.document-header {
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.document-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #2d3748;
+    margin: 4px 0 8px 0;
+    line-height: 1.4;
+}
+
+.document-meta {
+    font-size: 0.8rem;
+    color: #718096;
+    font-weight: 500;
+    margin-bottom: 4px;
+}
+
+.chunk-stats {
+    font-size: 0.75rem;
+    color: #a0aec0;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.document-preview {
+    margin-top: 12px;
+}
+
+.preview-label {
+    font-size: 0.75rem;
+    color: #4299e1;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.score-badge {
+    background: #4299e1;
+    color: white;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: none;
+    letter-spacing: normal;
+}
+
+.preview-content {
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: #4a5568;
+    max-height: 120px;
+    overflow: hidden;
+    position: relative;
+    background: #f8f9fa;
+    border-radius: 6px;
+    padding: 12px;
+    border-left: 3px solid #e2e8f0;
+}
+
+.preview-content::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 16px;
+    background: linear-gradient(transparent, #f8f9fa);
+}
+
+.document-chunks .chunk-preview {
+    background: #f8f9fa;
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 8px;
+    border-left: 3px solid #e2e8f0;
+}
+
+.chunk-preview:last-child {
+    margin-bottom: 0;
+}
+
+.chunk-meta {
+    font-size: 0.75rem;
+    color: #a0aec0;
+    margin-bottom: 6px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.chunk-content {
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: #4a5568;
+    max-height: 120px;
+    overflow: hidden;
+    position: relative;
+}
+
+.chunk-content::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 16px;
+    background: linear-gradient(transparent, #f8f9fa);
+}
+
+/* Legacy hit styling (kept for backward compatibility) */
 .hit {
     padding: 16px;
     border-bottom: 1px solid #f7fafc;
@@ -165,9 +301,11 @@
     background: linear-gradient(transparent, white);
 }
 
-/* Highlight styling */
+/* Highlight styling for both document and chunk content */
 .hit-content mark,
-.hit-source mark {
+.hit-source mark,
+.chunk-content mark,
+.document-title mark {
     background-color: #fed7d7;
     color: #c53030;
     padding: 1px 3px;
