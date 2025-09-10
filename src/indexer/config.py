@@ -156,6 +156,42 @@ COLLECTION_SCHEMA_TEMPLATE = {
             "optional": True
         },
         {
+            "name": "preprocessing_method",
+            "type": "string",
+            "facet": True,
+            "optional": True
+        },
+        {
+            "name": "content_length",
+            "type": "int32",
+            "facet": True,
+            "optional": True
+        },
+        {
+            "name": "processing_time",
+            "type": "float",
+            "facet": True,
+            "optional": True
+        },
+        {
+            "name": "memory_usage",
+            "type": "float",
+            "facet": True,
+            "optional": True
+        },
+        {
+            "name": "cpu_usage_percent",
+            "type": "float",
+            "facet": True,
+            "optional": True
+        },
+        {
+            "name": "gpu_usage_percent",
+            "type": "float",
+            "facet": True,
+            "optional": True
+        },
+        {
             "name": "embedding",
             "type": "float[]",
             "num_dim": 384

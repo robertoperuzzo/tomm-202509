@@ -2,7 +2,7 @@
 
 ## Overview
 
-This guide explains how to re-index Typesense collections after schema or data processor changes. The enhanced indexer now captures much more metadata from the chunk data including strategy configurations, document metadata, and improved scoring.
+This guide explains how to re-index Typesense collections after schema or data processor changes. The enhanced indexer now captures much more metadata from the chunk data including strategy configurations, document metadata, performance analytics, and improved scoring.
 
 ## Prerequisites
 
@@ -39,12 +39,23 @@ cd /workspace
 python -m src.indexer --extraction-method unstructured --chunking-strategy fixed_size --force-recreate --max-documents 5
 ```
 
+## 📊 New Performance Analytics
+
+After Phase 2 implementation, the indexer now includes comprehensive performance analytics:
+
+- **Performance tracking**: Processing time, memory usage, CPU/GPU utilization
+- **Strategy comparison**: Compare performance between different chunking strategies
+- **Optimization insights**: Automatically identify optimal strategies
+- **Analytics API**: Access performance data programmatically
+
+The performance data is stored in the collection schema and can be queried alongside document content.
+
 ## Command Options Explained
 
 | Option                | Description                                           | Values                                                                | Default |
 | --------------------- | ----------------------------------------------------- | --------------------------------------------------------------------- | ------- |
 | `--index-all`         | Index all available extraction methods and strategies | flag                                                                  | false   |
-| `--extraction-method` | Specific extraction method                            | `unstructured`, `marker`, `pypdf`                                     | none    |
+| `--extraction-method` | Specific extraction method                            | `unstructured`, `marker`, `pypdf`, `markitdown`                       | none    |
 | `--chunking-strategy` | Specific chunking strategy                            | `fixed_size`, `semantic`, `sliding_langchain`, `sliding_unstructured` | none    |
 | `--max-documents`     | Number of documents to process                        | integer or `-1` for all                                               | 5       |
 | `--force-recreate`    | Delete and recreate collections                       | flag                                                                  | false   |
@@ -112,7 +123,23 @@ python -m src.indexer --stats
 
 ## Enhanced Schema Fields
 
-The new schema includes these additional fields:
+The new schema includes these additional fields beyond the core document fields:
+
+### Core Fields
+
+| Field               | Type   | Description                     | Facetable |
+| ------------------- | ------ | ------------------------------- | --------- |
+| `chunk_id`          | string | Unique identifier for the chunk | ❌        |
+| `document_id`       | string | Document identifier             | ✅        |
+| `document_title`    | string | Document title                  | ✅        |
+| `document_filename` | string | Original filename               | ✅        |
+| `extraction_method` | string | Extraction method used          | ✅        |
+| `chunking_strategy` | string | Chunking strategy applied       | ✅        |
+| `content`           | string | Chunk text content              | ❌        |
+| `token_count`       | int32  | Number of tokens in chunk       | ✅        |
+| `chunk_index`       | int32  | Position of chunk in document   | ✅        |
+
+### Enhanced Metadata Fields
 
 | Field           | Type     | Description                            | Facetable |
 | --------------- | -------- | -------------------------------------- | --------- |
@@ -123,6 +150,17 @@ The new schema includes these additional fields:
 | `chunk_size`    | int32    | Strategy chunk size config (optional)  | ✅        |
 | `chunk_overlap` | int32    | Strategy overlap config (optional)     | ✅        |
 | `encoding_name` | string   | Token encoding used (optional)         | ✅        |
+
+### Performance Analytics Fields
+
+| Field                  | Type   | Description                            | Facetable |
+| ---------------------- | ------ | -------------------------------------- | --------- |
+| `preprocessing_method` | string | Preprocessing method identifier        | ✅        |
+| `content_length`       | int32  | Length of processed content            | ✅        |
+| `processing_time`      | float  | Processing time in seconds             | ✅        |
+| `memory_usage`         | float  | Memory usage in MB                     | ✅        |
+| `cpu_usage_percent`    | float  | CPU usage percentage during processing | ✅        |
+| `gpu_usage_percent`    | float  | GPU usage percentage (if available)    | ✅        |
 
 ## Troubleshooting
 
@@ -144,6 +182,11 @@ python -m src.indexer --index-all --force-recreate
 ls -la /workspace/data/processed/
 ls -la /workspace/data/chunks/
 ```
+
+**Note**: The indexer supports both old and new chunking file formats:
+
+- **New format**: `{document_id}_{extraction_method}_{chunking_strategy}.json`
+- **Old format**: Legacy naming patterns (automatically detected)
 
 #### ❌ "Connection refused"
 
@@ -186,13 +229,15 @@ Examples:
 - `unstructured_sliding_unstructured`
 - `marker_fixed_size`
 - `pypdf_fixed_size`
+- `markitdown_semantic`
 
 ## After Re-indexing
 
 1. **Test Frontend**: Refresh the web application and test search functionality
 2. **Check Scores**: Verify that relevance scores are now showing correctly (not 0.000)
 3. **Validate Data**: Ensure new fields are populated and searchable
-4. **Performance**: Monitor search performance with the enhanced schema
+4. **Performance Analytics**: New performance metadata is available for analysis
+5. **Performance**: Monitor search performance with the enhanced schema
 
 ## Logs
 
@@ -222,8 +267,10 @@ python -m src.indexer --extraction-method unstructured --chunking-strategy seman
 ## 🚨 Remember After Re-indexing
 
 - **Frontend will now show proper scores** (not 0.000)
-- **More metadata available** for display
-- **Enhanced search capabilities** with new fields
+- **More metadata available** for display and filtering
+- **Enhanced search capabilities** with new fields and performance analytics
 - **Better document-level grouping** with total_chunks info
+- **Performance insights** available through new analytics fields
+- **Multi-format support** - works with both old and new chunking file formats
 
 Save this guide for future reference! 📋

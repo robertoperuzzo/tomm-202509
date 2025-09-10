@@ -48,6 +48,7 @@ python -m src.indexer --extraction-method unstructured --chunking-strategy seman
    - ✅ No pagination issues
    - ✅ More detailed chunk statistics
    - ✅ Strategy configuration info
+   - ✅ Performance analytics data
 
 2. **Test search** - Try searching for terms and verify the document-level results
 
@@ -61,7 +62,9 @@ The indexer now captures much more data from your chunks:
 
 - Strategy configurations (chunk_size, overlap, encoding)
 - Document metadata (authors, total_chunks, created_at)
+- **Performance analytics** (processing_time, memory_usage, CPU/GPU usage)
 - Better relevance scoring
 - Complete chunk information
+- Multi-format support (new chunking file format with backward compatibility)
 
 See [INDEXING_IMPROVEMENTS.md](INDEXING_IMPROVEMENTS.md) for details.
