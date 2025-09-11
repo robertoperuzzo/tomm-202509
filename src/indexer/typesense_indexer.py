@@ -200,40 +200,23 @@ class TypesenseIndexer(BaseIndexer):
         logger.info(f"Found extraction methods: {extraction_methods}")
 
         for extraction_method in extraction_methods:
-            # Get a sample document to determine available strategies
-            files = self.data_processor.get_processed_files(
-                extraction_method, 1)
-            if not files:
-                logger.warning(f"No files found for {extraction_method}")
+            # Get available strategies for this extraction method
+            strategies = (
+                self.data_processor
+                .get_available_strategies_for_extraction_method(
+                    extraction_method))
+
+            if not strategies:
+                logger.warning("No strategies found for %s", extraction_method)
                 continue
 
-            # Load first document to get document_id
-            doc = self.data_processor.load_processed_document(files[0])
-            if not doc:
-                continue
-
-            document_id = doc.get('document_id')
-            if not document_id:
-                continue
-
-            # Get chunks file to determine strategies
-            chunks_file = self.data_processor.get_chunks_file(document_id)
-            if not chunks_file:
-                continue
-
-            chunks_data = self.data_processor.load_chunks_data(chunks_file)
-            if not chunks_data:
-                continue
-
-            strategies = self.data_processor.get_available_strategies(
-                chunks_data)
             logger.info(
-                f"Found strategies for {extraction_method}: {strategies}")
+                "Found strategies for %s: %s", extraction_method, strategies)
 
             # Index each combination
             for strategy in strategies:
                 combination = f"{extraction_method}_{strategy}"
-                logger.info(f"Indexing combination: {combination}")
+                logger.info("Indexing combination: %s", combination)
 
                 success = self.index_extraction_method_strategy(
                     extraction_method, strategy, max_documents, force_recreate

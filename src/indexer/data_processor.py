@@ -46,35 +46,18 @@ class DataProcessor:
 
         return sorted(json_files)
 
-    def get_chunks_file(self, document_id: str, extraction_method: str = None,
-                        chunking_strategy: str = None) -> Optional[Path]:
-        """Get chunks file for a document with strategy-aware discovery."""
-        # Try new format first if we have strategy and extraction method
-        if extraction_method and chunking_strategy:
-            pattern = (f"{document_id}_{extraction_method}_"
-                       f"{chunking_strategy}.json")
-            chunks_file = self.chunks_data_path / pattern
+    def get_chunks_file(self, document_id: str, extraction_method: str,
+                        chunking_strategy: str) -> Optional[Path]:
+        """Get chunks file for a document with the new format."""
+        pattern = (f"{document_id}_{extraction_method}_"
+                   f"{chunking_strategy}.json")
+        chunks_file = self.chunks_data_path / pattern
 
-            if chunks_file.exists():
-                return chunks_file
+        if chunks_file.exists():
+            return chunks_file
 
-        # Fallback to old pattern for backward compatibility
-        old_pattern = f"*{document_id}*.json"
-        old_files = list(self.chunks_data_path.glob(old_pattern))
-
-        if old_files:
-            if extraction_method and chunking_strategy:
-                logger.info("Using legacy chunks file format for %s",
-                            document_id)
-            if len(old_files) > 1:
-                logger.warning("Multiple chunks files found for %s, "
-                               "using first: %s", document_id, old_files[0])
-            return old_files[0]
-
-        suffix = ""
-        if extraction_method and chunking_strategy:
-            suffix = f"_{extraction_method}_{chunking_strategy}"
-        logger.warning("No chunks file found for %s%s", document_id, suffix)
+        logger.warning("No chunks file found for %s_%s_%s",
+                       document_id, extraction_method, chunking_strategy)
         return None
 
     def load_processed_document(self, file_path: Path) -> Optional[
@@ -88,46 +71,72 @@ class DataProcessor:
                          file_path, e)
             return None
 
-    def load_chunks_data(self, file_path: Path,
-                         chunking_strategy: str = None) -> Optional[
-                             Dict[str, Any]]:
-        """Load chunks data with format auto-detection."""
+    def load_chunks_data(self, file_path: Path) -> Optional[Dict[str, Any]]:
+        """Load chunks data in the new format."""
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
 
-            # Detect format based on structure
+            # Validate new format structure
             if 'results' in data and 'chunks' in data['results']:
-                # New format: direct chunks access
                 return data
-            elif ('results' in data and chunking_strategy and
-                  chunking_strategy in data['results']):
-                # Old format: strategy-keyed access
-                # Transform to new format for consistent processing
-                strategy_data = data['results'][chunking_strategy]
-                return {
-                    'document_info': data.get('document_info', {}),
-                    'strategy_config': strategy_data.get('config', {}),
-                    'results': {
-                        'chunks': strategy_data.get('chunks', [])
-                    }
-                }
             else:
-                logger.error("Unrecognized chunks data format in %s",
-                             file_path)
+                logger.error("Invalid chunks data format in %s - "
+                             "missing 'results.chunks'", file_path)
                 return None
 
-        except (IOError, json.JSONDecodeError, KeyError) as e:
+        except (IOError, json.JSONDecodeError) as e:
             logger.error("Error loading chunks data %s: %s", file_path, e)
             return None
 
-    def get_available_strategies(self, chunks_data: Dict[str, Any]) -> List[
-            str]:
-        """Get available chunking strategies from chunks data."""
-        if 'results' not in chunks_data:
-            return []
+    def get_available_strategies(self) -> List[str]:
+        """Get available chunking strategies by scanning chunk files."""
+        strategies = set()
 
-        return list(chunks_data['results'].keys())
+        # Scan all chunk files to find strategies
+        for chunk_file in self.chunks_data_path.glob("*.json"):
+            # Parse filename: {document_id}_{extraction_method}_{strategy}.json
+            # Strategy can contain underscores, so we need to be careful
+            filename = chunk_file.stem
+
+            # Try to find extraction method and strategy
+            # Known extraction methods to help with parsing
+            known_methods = ['pypdf', 'unstructured', 'marker', 'markitdown']
+
+            for method in known_methods:
+                if f"_{method}_" in filename:
+                    # Find the strategy part after the extraction method
+                    method_pos = filename.find(f"_{method}_")
+                    strategy_start = method_pos + len(f"_{method}_")
+                    strategy = filename[strategy_start:]
+                    if strategy:
+                        strategies.add(strategy)
+                    break
+
+        return sorted(list(strategies))
+
+    def get_available_strategies_for_extraction_method(self,
+                                                       extraction_method: str
+                                                       ) -> List[str]:
+        """Get available strategies for a specific extraction method."""
+        strategies = set()
+
+        # Scan chunk files for this extraction method
+        pattern = f"*_{extraction_method}_*.json"
+        for chunk_file in self.chunks_data_path.glob(pattern):
+            # Parse filename: {document_id}_{extraction_method}_{strategy}.json
+            filename = chunk_file.stem
+
+            # Find the strategy part after the extraction method
+            method_marker = f"_{extraction_method}_"
+            method_pos = filename.find(method_marker)
+            if method_pos != -1:
+                strategy_start = method_pos + len(method_marker)
+                strategy = filename[strategy_start:]
+                if strategy:
+                    strategies.add(strategy)
+
+        return sorted(list(strategies))
 
     def prepare_documents_for_indexing(self, extraction_method: str,
                                        chunking_strategy: str,
@@ -162,7 +171,7 @@ class DataProcessor:
             if not chunks_file:
                 continue
 
-            chunks_data = self.load_chunks_data(chunks_file, chunking_strategy)
+            chunks_data = self.load_chunks_data(chunks_file)
             if not chunks_data:
                 continue
 
@@ -187,22 +196,17 @@ class DataProcessor:
     def _create_index_document(self, processed_doc: Dict[str, Any],
                                chunk: Dict[str, Any], extraction_method: str,
                                chunking_strategy: str,
-                               chunks_data: Dict[str, Any] = None) -> Optional[
+                               chunks_data: Dict[str, Any]) -> Optional[
                                    Dict[str, Any]]:
         """Create a document for indexing with enhanced metadata."""
         try:
-            # Extract metadata
+            # Extract metadata from chunk
             metadata = chunk.get('metadata', {})
-            strategy_config = metadata.get('strategy_config', {})
 
-            # Get strategy config from new format if available
-            if chunks_data:
-                new_strategy_config = chunks_data.get('strategy_config', {})
-                processing_metadata = chunks_data.get(
-                    'processing_metadata', {})
-            else:
-                new_strategy_config = {}
-                processing_metadata = {}
+            # Get strategy config and processing metadata from chunks_data
+            strategy_config = chunks_data.get('strategy_config', {})
+            processing_metadata = chunks_data.get('processing_metadata', {})
+            doc_info = chunks_data.get('document_info', {})
 
             # Create the document with all available fields
             doc = {
@@ -221,46 +225,26 @@ class DataProcessor:
                 "start_position": chunk.get('start_position', 0),
                 "end_position": chunk.get('end_position', 0),
                 "created_at": chunk.get('created_at', ''),
+                "preprocessing_method": doc_info.get(
+                    'preprocessing_method', extraction_method),
+                "content_length": doc_info.get('content_length', 0),
+                "processing_time": processing_metadata.get(
+                    'processing_time', 0),
+                "memory_usage": processing_metadata.get('memory_usage', 0),
+                "cpu_usage_percent": processing_metadata.get(
+                    'cpu_usage_percent', 0),
+                "gpu_usage_percent": processing_metadata.get(
+                    'gpu_usage_percent', 0),
             }
-
-            # Add new fields from enhanced format if available
-            if chunks_data and 'document_info' in chunks_data:
-                doc_info = chunks_data['document_info']
-                doc.update({
-                    "preprocessing_method": doc_info.get(
-                        'preprocessing_method', extraction_method),
-                    "content_length": doc_info.get('content_length', 0),
-                })
-
-            # Add processing metadata if available
-            if processing_metadata:
-                doc.update({
-                    "processing_time": processing_metadata.get(
-                        'processing_time', 0),
-                    "memory_usage": processing_metadata.get('memory_usage', 0),
-                    "cpu_usage_percent": processing_metadata.get(
-                        'cpu_usage_percent', 0),
-                    "gpu_usage_percent": processing_metadata.get(
-                        'gpu_usage_percent', 0),
-                })
 
             # Add authors if available
             authors = metadata.get('authors', [])
             if authors:
                 doc["authors"] = authors
 
-            # Add strategy configuration from old format
-            if strategy_config:
-                if 'chunk_size' in strategy_config:
-                    doc["chunk_size"] = strategy_config['chunk_size']
-                if 'chunk_overlap' in strategy_config:
-                    doc["chunk_overlap"] = strategy_config['chunk_overlap']
-                if 'encoding_name' in strategy_config:
-                    doc["encoding_name"] = strategy_config['encoding_name']
-
             # Add strategy parameters from new format
-            if new_strategy_config and 'parameters' in new_strategy_config:
-                params = new_strategy_config['parameters']
+            if 'parameters' in strategy_config:
+                params = strategy_config['parameters']
                 doc.update({
                     "chunk_size": params.get('chunk_size', 0),
                     "chunk_overlap": params.get('overlap', 0),

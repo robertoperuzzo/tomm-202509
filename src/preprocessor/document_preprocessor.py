@@ -12,7 +12,7 @@ from typing import Dict, List, Optional, Type, Union
 from .base import BaseExtractor, ExtractionResult
 from .extractors.pypdf_extractor import PyPDFExtractor
 from .extractors.unstructured_extractor import UnstructuredExtractor
-from .extractors.marker_extractor import MarkerExtractor
+from .extractors.marker_extractor import MarkerExtractor, MarkerConfig
 from .extractors.markitdown_extractor import MarkItDownExtractor
 from .utils.metadata_extractor import MetadataExtractor
 from ..config import DATA_RAW_PATH, DATA_PROCESSED_PATH, LOGS_PATH
@@ -80,9 +80,18 @@ class DocumentPreprocessor:
                 )
 
             try:
-                self._loaded_extractors[method] = (
-                    self._available_extractors[method]()
-                )
+                # Special handling for marker extractor to disable image extraction
+                if method == 'marker':
+                    # Configure marker to skip image extraction to prevent
+                    # JSON truncation
+                    marker_config = MarkerConfig(extract_images=False)
+                    self._loaded_extractors[method] = (
+                        self._available_extractors[method](marker_config)
+                    )
+                else:
+                    self._loaded_extractors[method] = (
+                        self._available_extractors[method]()
+                    )
             except ImportError as e:
                 raise ImportError(
                     f"Dependencies for {method} extractor not available: {e}"
