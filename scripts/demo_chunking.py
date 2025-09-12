@@ -19,9 +19,9 @@ Usage:
     python scripts/demo_chunking.py --no-metrics
 """
 
-from src.chunker.config import get_default_config
-from src.chunker.models import ProcessedDocument
 from src.chunker.pipeline import ChunkingPipeline
+from src.chunker.models import ProcessedDocument
+from src.chunker.config import get_default_config
 import argparse
 import json
 import logging
@@ -190,7 +190,7 @@ def find_available_files(data_dir: Path,
     available_files = []
 
     # Look for files in different preprocessing methods
-    for method_dir in ['pypdf', 'unstructured', 'marker']:
+    for method_dir in ['pypdf', 'unstructured', 'marker', 'markitdown']:
         if methods_filter and method_dir not in methods_filter:
             continue
 

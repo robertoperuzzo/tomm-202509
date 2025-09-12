@@ -130,11 +130,10 @@ We will implement **Option 1: Modify Marker Extractor** to ensure structural con
    - Verify indexing compatibility
    - Ensure search functionality works with updated structure
 
-### Phase 3: Documentation and Migration
+### Phase 3: Documentation
 
 1. **Update Documentation**:
    - Update preprocessing documentation to reflect standardized structure
-   - Document the change in migration guide
    - Update API documentation
 
 ## Consequences
