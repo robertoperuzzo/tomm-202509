@@ -126,7 +126,7 @@ def save_processed_documents(preprocessor: DocumentPreprocessor,
             file_path = Path(doc_result['file_path'])
             
             # Generate output filename
-            doc_id = file_path.stem.replace(' ', '').replace('.', '')
+            doc_id = file_path.stem.replace(' ', '_').replace('.', '')
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             output_filename = f"{doc_id}_{timestamp}.json"
             output_path = method_dir / output_filename

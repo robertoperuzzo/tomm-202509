@@ -80,9 +80,9 @@ class MetadataExtractor:
         Returns:
             Document ID string used as prefix for processed files
         """
-        # Convert original filename to lowercase, remove special chars
-        original_name = file_path.stem.lower()
-        clean_name = re.sub(r'[^a-z0-9]', '', original_name)
+        # Convert original filename, preserve underscores, remove others
+        original_name = file_path.stem.replace(' ', '_')
+        clean_name = re.sub(r'[^a-z0-9_]', '', original_name.lower())
         return clean_name
 
     @staticmethod
