@@ -58,19 +58,17 @@ services:
     profiles:
       - production
 
-  # Frontend (will be used later)
+  # Frontend - Vanilla JS with nginx
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
-      - "3000:3000"
+      - "3000:80"
     depends_on:
-      - backend
+      - typesense
     networks:
       - chunker-demo
-    profiles:
-      - production
 
 volumes:
   typesense-data:
