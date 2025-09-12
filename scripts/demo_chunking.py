@@ -19,9 +19,9 @@ Usage:
     python scripts/demo_chunking.py --no-metrics
 """
 
-from src.chunker.pipeline import ChunkingPipeline
-from src.chunker.models import ProcessedDocument
 from src.chunker.config import get_default_config
+from src.chunker.models import ProcessedDocument
+from src.chunker.pipeline import ChunkingPipeline
 import argparse
 import json
 import logging
