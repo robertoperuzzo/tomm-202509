@@ -19,19 +19,24 @@ Usage:
     python scripts/demo_chunking.py --no-metrics
 """
 
-from src.chunker.config import get_default_config
-from src.chunker.models import ProcessedDocument
+from typing import Dict, Any, List, Optional, Tuple
+from datetime import datetime
+import psutil
 from src.chunker.pipeline import ChunkingPipeline
+from src.chunker.models import ProcessedDocument
+from src.chunker.config import get_default_config
 import argparse
 import json
 import logging
 import sys
 import time
 import traceback
-import psutil
-from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Tuple
+
+# Add the workspace root to Python path
+workspace_root = Path(__file__).parent.parent
+sys.path.insert(0, str(workspace_root))
+
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -449,7 +454,7 @@ def main():
         strategies_config = {
             'fixed_size': {
                 'chunk_size': 512,
-                'overlap': 50
+                'chunk_overlap': 0
             },
             'sliding_langchain': {
                 'chunk_size': 1000,
