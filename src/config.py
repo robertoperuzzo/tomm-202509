@@ -29,13 +29,13 @@ TYPESENSE_CONFIG = {
 # Chunker strategies configuration
 CHUNKER_STRATEGIES = {
     "fixed_size": {
-        "chunk_size": int(os.getenv("CHUNK_SIZE_TOKENS", "512")),
-        "chunk_overlap": int(os.getenv("CHUNK_OVERLAP", "50")),
+        "chunk_size": int(os.getenv("CHUNK_SIZE_TOKENS", "1000")),
+        "chars_per_token": int(os.getenv("CHUNK_OVERLAP", "4")),
         "collection_name": "chunks_fixed_size"
     },
     "sliding_langchain": {
         "chunk_size": 1000,
-        "chunk_overlap": 200,
+        "chunk_overlap": 80,
         "collection_name": "chunks_sliding_langchain"
     },
     "sliding_unstructured": {
@@ -44,7 +44,7 @@ CHUNKER_STRATEGIES = {
         "collection_name": "chunks_sliding_unstructured"
     },
     "semantic": {
-        "threshold": float(os.getenv("SEMANTIC_THRESHOLD", "0.7")),
+        "threshold": float(os.getenv("SEMANTIC_THRESHOLD", "0.8")),
         "collection_name": "chunks_semantic"
     }
 }

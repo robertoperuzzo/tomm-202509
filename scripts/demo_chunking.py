@@ -832,25 +832,29 @@ def main():
 
         # Configure chunking strategies
         strategies_config = {
-            'fixed_size': {
-                'chunk_size': 512,
-                'chunk_overlap': 0
+            "fixed_size": {
+                "chunk_size": 1000,
+                "chars_per_token": 4.0
             },
-            'sliding_langchain': {
-                'chunk_size': 1000,
-                'chunk_overlap': 100,
-                'separators': ['\n\n', '\n', '.', ' ']
+            "sliding_langchain": {
+                "chunk_size": 1000,
+                "chunk_overlap": 80,
+                "separators": ["\n\n", "\n", " ", ""],
+                "keep_separator": False,
+                "is_separator_regex": False
             },
-            'sliding_unstructured': {
-                'max_characters': 800,
-                'overlap': 80,
-                'strategy': 'by_title'
+            "sliding_unstructured": {
+                "max_elements_per_chunk": 10,
+                "overlap_percentage": 0.2,
+                "priority_elements": ["Title", "Header", "NarrativeText"],
+                "respect_boundaries": True
             },
-            'semantic': {
-                'embedding_model': 'sentence-transformers/all-MiniLM-L6-v2',
-                'similarity_threshold': 0.8,
-                'min_chunk_size': 200,
-                'max_chunk_size': 1500
+            "semantic": {
+                "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+                "similarity_threshold": 0.8,
+                "min_chunk_size": 200,
+                "max_chunk_size": 2000,
+                "batch_size": 32
             }
         }
 
