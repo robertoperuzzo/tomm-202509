@@ -216,9 +216,33 @@ class MarkerExtractor(BaseExtractor):
                 performance_metrics=performance_metrics,
                 quality_metrics=quality_metrics,
                 method_specific_data={
-                    **method_data,
                     'extraction_method': 'marker',
-                    'file_format': file_path.suffix.lower()
+                    'file_format': file_path.suffix.lower(),
+                    'output_format': self.config.output_format,
+                    'marker_version': self._get_marker_version(),
+                    'llm_enhanced': self.config.use_llm,
+                    'force_ocr': self.config.force_ocr,
+                    'extract_images': self.config.extract_images,
+                    'images_extracted': len(method_data.get('images', {})),
+                    'tables_detected': self._count_tables(method_data),
+                    'equations_processed': self._count_equations(text),
+                    # Include only marker-specific metadata, not file metadata
+                    'table_of_contents': method_data.get(
+                        'metadata', {}
+                    ).get('table_of_contents', []),
+                    'document_structure': method_data.get(
+                        'metadata', {}
+                    ).get('document_structure', {}),
+                    # For markdown format, include markdown-specific data
+                    **({
+                        'markdown_metadata': method_data.get('metadata', {}),
+                        'images': method_data.get('images', {})
+                    } if self.config.output_format == "markdown" else {}),
+                    # For json format, include structure data
+                    **({
+                        'children': method_data.get('children', []),
+                        'block_type': method_data.get('block_type', 'Document')
+                    } if self.config.output_format == "json" else {})
                 }
             )
 

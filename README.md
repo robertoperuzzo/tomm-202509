@@ -210,7 +210,7 @@ python -m src.indexer --index-all --max-documents 2 --log-level DEBUG
 
 #### Available Chunking Strategies
 
-- `fixed_size`: Token-aware splitting (512 tokens, 50 overlap)
+- `fixed_size`: Token-aware splitting (512 tokens, no overlap)
 - `sliding_langchain`: Document-structure aware (1000 chars, 100 overlap)
 - `sliding_unstructured`: Element-based chunking (800 chars, 80 overlap)
 - `semantic`: Natural breakpoint identification (200-1500 chars)

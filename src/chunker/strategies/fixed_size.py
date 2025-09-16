@@ -17,14 +17,14 @@ logger = logging.getLogger(__name__)
 
 class FixedSizeChunker(ChunkingStrategy):
     """Fixed-size token-based chunking strategy.
-    
+
     This strategy splits text into chunks with a fixed number of tokens,
     with optional overlap between chunks.
     """
-    
+
     def __init__(self, config: Dict[str, Any]):
         """Initialize the fixed-size chunker.
-        
+
         Args:
             config: Configuration dictionary containing:
                 - chunk_size: Number of tokens per chunk (default: 1024)
@@ -33,35 +33,35 @@ class FixedSizeChunker(ChunkingStrategy):
         """
         super().__init__(config)
         self.strategy_name = "fixed_size"  # Override base class inference
-        
+
         self.chunk_size = config.get('chunk_size', 1024)
         self.chunk_overlap = config.get('chunk_overlap', 0)
         self.encoding_name = config.get('encoding_name', 'cl100k_base')
-        
+
         # Initialize token counter
         self.token_counter = TokenCounter(self.encoding_name)
-        
+
         # Validate configuration
         if self.chunk_size <= 0:
             raise ValueError("chunk_size must be positive")
-        
+
         if self.chunk_overlap < 0:
             raise ValueError("chunk_overlap cannot be negative")
-            
+
         if self.chunk_overlap >= self.chunk_size:
             raise ValueError("chunk_overlap must be less than chunk_size")
-    
+
     def chunk_document(
         self, document: ProcessedDocument
     ) -> List[DocumentChunk]:
         """Chunk document using fixed-size token-based splitting.
-        
+
         Args:
             document: The document to chunk
-            
+
         Returns:
             List of document chunks
-            
+
         Raises:
             ChunkingError: If chunking fails
         """
@@ -71,20 +71,20 @@ class FixedSizeChunker(ChunkingStrategy):
                 strategy_name=self.strategy_name,
                 document_id=document.document_id
             )
-        
+
         try:
             # Clean the text
             text = clean_text(document.full_text)
-            
+
             if not text:
                 logger.warning(
                     f"No text content for document {document.document_id}"
                 )
                 return []
-            
+
             # Split text using LangChain's TokenTextSplitter
             chunks = self._split_text_by_tokens(text)
-            
+
             # Create DocumentChunk objects
             document_chunks = []
             for i, chunk_text in enumerate(chunks):
@@ -92,14 +92,14 @@ class FixedSizeChunker(ChunkingStrategy):
                     document, chunk_text, i
                 )
                 document_chunks.append(chunk)
-            
+
             logger.info(
                 f"Created {len(document_chunks)} chunks for document "
                 f"{document.document_id} using fixed-size strategy"
             )
-            
+
             return document_chunks
-            
+
         except Exception as e:
             logger.error(f"Fixed-size chunking failed: {str(e)}")
             raise ChunkingError(
@@ -107,63 +107,113 @@ class FixedSizeChunker(ChunkingStrategy):
                 strategy_name=self.strategy_name,
                 document_id=document.document_id
             )
-    
+
     def _split_text_by_tokens(self, text: str) -> List[str]:
         """Split text into chunks by token count.
-        
+
+        For truly fixed-size chunks with no overlap, we use a direct approach
+        that ensures consistent chunk sizes in tokens.
+
         Args:
             text: Text to split
-            
+
         Returns:
             List of text chunks
         """
+        # For fixed-size with no overlap, use direct token-based splitting
+        if self.chunk_overlap == 0:
+            return self._split_text_by_tokens_direct(text)
+
+        # For overlapping chunks, use LangChain
         try:
-            # Try to use LangChain's TokenTextSplitter
             from langchain_text_splitters import TokenTextSplitter
-            
+
             splitter = TokenTextSplitter(
                 chunk_size=self.chunk_size,
                 chunk_overlap=self.chunk_overlap,
                 encoding_name=self.encoding_name
             )
-            
+
             return splitter.split_text(text)
-            
+
         except ImportError:
             logger.warning(
                 "LangChain TokenTextSplitter not available, "
                 "using fallback implementation"
             )
             return self._fallback_split_text(text)
-    
-    def _fallback_split_text(self, text: str) -> List[str]:
-        """Fallback text splitting when LangChain is not available.
-        
+
+    def _split_text_by_tokens_direct(self, text: str) -> List[str]:
+        """Split text into fixed-size token chunks with no overlap.
+
+        This method ensures truly consistent chunk sizes by using
+        the tokenizer directly.
+
         Args:
             text: Text to split
-            
+
+        Returns:
+            List of text chunks with consistent token counts
+        """
+        # Check if we have a real encoder or fallback
+        if self.token_counter.encoder == "fallback":
+            logger.warning(
+                "tiktoken not available, using fallback character-based "
+                "splitting"
+            )
+            return self._fallback_split_text_no_overlap(text)
+
+        # Encode the text to get tokens
+        tokens = self.token_counter.encoder.encode(text)
+
+        if not tokens:
+            return []
+
+        chunks = []
+        for i in range(0, len(tokens), self.chunk_size):
+            chunk_tokens = tokens[i:i + self.chunk_size]
+            chunk_text = self.token_counter.encoder.decode(chunk_tokens)
+
+            # Clean up any incomplete characters at boundaries
+            chunk_text = chunk_text.strip()
+            if chunk_text:  # Only add non-empty chunks
+                chunks.append(chunk_text)
+
+        return chunks
+
+    def _fallback_split_text(self, text: str) -> List[str]:
+        """Fallback text splitting when LangChain is not available.
+
+        Args:
+            text: Text to split
+
         Returns:
             List of text chunks
         """
+        # For no overlap case, try to use direct token counting
+        if self.chunk_overlap == 0:
+            return self._fallback_split_text_no_overlap(text)
+
+        # For overlap case, use word-based approximation
         words = text.split()
         if not words:
             return []
-        
+
         chunks = []
         current_chunk = []
         current_tokens = 0
-        
+
         for word in words:
             # Estimate tokens for this word (rough approximation)
             word_tokens = max(1, len(word) // 4)
-            
+
             if (current_tokens + word_tokens > self.chunk_size and
                     current_chunk):
-                
+
                 # Finalize current chunk
                 chunk_text = ' '.join(current_chunk)
                 chunks.append(chunk_text)
-                
+
                 # Start new chunk with overlap
                 if self.chunk_overlap > 0:
                     overlap_words = current_chunk[-self.chunk_overlap:]
@@ -177,37 +227,88 @@ class FixedSizeChunker(ChunkingStrategy):
             else:
                 current_chunk.append(word)
                 current_tokens += word_tokens
-        
+
         # Add final chunk
         if current_chunk:
             chunk_text = ' '.join(current_chunk)
             chunks.append(chunk_text)
-        
+
         return chunks
-    
+
+    def _fallback_split_text_no_overlap(self, text: str) -> List[str]:
+        """Fallback splitting for no overlap case using char approximation.
+
+        When tokenizer is not available, we approximate by using characters.
+        Typical ratio is about 4 characters per token for English text.
+
+        Args:
+            text: Text to split
+
+        Returns:
+            List of text chunks
+        """
+        # Approximate characters per token (4 is typical for English)
+        chars_per_token = 4
+        chunk_size_chars = self.chunk_size * chars_per_token
+
+        if len(text) <= chunk_size_chars:
+            return [text] if text.strip() else []
+
+        chunks = []
+        start = 0
+
+        while start < len(text):
+            end = start + chunk_size_chars
+
+            if end >= len(text):
+                # Last chunk
+                chunk = text[start:].strip()
+                if chunk:
+                    chunks.append(chunk)
+                break
+
+            # Try to break at word boundary
+            chunk = text[start:end]
+
+            # Find the last space within the chunk to avoid breaking words
+            last_space = chunk.rfind(' ')
+            # Only if we're not cutting the chunk too short
+            if last_space > chunk_size_chars // 2:
+                end = start + last_space
+                chunk = text[start:end].strip()
+            else:
+                chunk = chunk.strip()
+
+            if chunk:
+                chunks.append(chunk)
+
+            start = end + 1 if text[end:end+1] == ' ' else end
+
+        return chunks
+
     def _create_document_chunk(
-        self, 
-        document: ProcessedDocument, 
-        chunk_text: str, 
+        self,
+        document: ProcessedDocument,
+        chunk_text: str,
         chunk_index: int
     ) -> DocumentChunk:
         """Create a DocumentChunk from text and metadata.
-        
+
         Args:
             document: Source document
             chunk_text: Text content of the chunk
             chunk_index: Index of this chunk in the document
-            
+
         Returns:
             DocumentChunk object
         """
         # Calculate positions (approximate for token-based splitting)
         start_pos = chunk_index * (self.chunk_size - self.chunk_overlap)
         end_pos = start_pos + len(chunk_text)
-        
+
         # Count actual tokens in the chunk
         token_count = self.token_counter.count_tokens(chunk_text)
-        
+
         return DocumentChunk(
             chunk_id=self.generate_chunk_id(document.document_id, chunk_index),
             document_id=document.document_id,
@@ -224,10 +325,10 @@ class FixedSizeChunker(ChunkingStrategy):
                 'strategy_config': self.get_strategy_config()
             }
         )
-    
+
     def get_strategy_config(self) -> Dict[str, Any]:
         """Get the current configuration for this strategy.
-        
+
         Returns:
             Dictionary containing strategy configuration
         """

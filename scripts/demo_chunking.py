@@ -19,19 +19,25 @@ Usage:
     python scripts/demo_chunking.py --no-metrics
 """
 
-from src.chunker.config import get_default_config
-from src.chunker.models import ProcessedDocument
+from typing import Dict, Any, List, Optional, Tuple
+from datetime import datetime
+import psutil
 from src.chunker.pipeline import ChunkingPipeline
+from src.chunker.models import ProcessedDocument
+from src.chunker.config import get_default_config
 import argparse
 import json
 import logging
 import sys
 import time
 import traceback
-import psutil
-from datetime import datetime
+import statistics as py_statistics
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Tuple
+
+# Add the workspace root to Python path
+workspace_root = Path(__file__).parent.parent
+sys.path.insert(0, str(workspace_root))
+
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -44,6 +50,102 @@ try:
     GPU_AVAILABLE = True
 except ImportError:
     GPU_AVAILABLE = False
+
+
+# Statistical utilities for enhanced metrics
+class StatisticalUtils:
+    """Utility class for calculating statistical metrics."""
+
+    @staticmethod
+    def safe_divide(numerator: float, denominator: float) -> float:
+        """Safely divide two numbers, returning 0 if denominator is 0."""
+        return numerator / denominator if denominator != 0 else 0
+
+    @staticmethod
+    def calculate_stats(values: List[float]) -> Dict[str, float]:
+        """Calculate comprehensive statistics for a list of values."""
+        if not values:
+            return {
+                'mean': 0, 'median': 0, 'std_dev': 0,
+                'min': 0, 'max': 0, 'p25': 0, 'p75': 0
+            }
+
+        quartiles = py_statistics.quantiles(
+            values, n=4) if len(values) >= 4 else None
+        return {
+            'mean': py_statistics.mean(values),
+            'median': py_statistics.median(values),
+            'std_dev': py_statistics.stdev(values) if len(values) > 1 else 0,
+            'min': min(values),
+            'max': max(values),
+            'p25': quartiles[0] if quartiles else min(values),
+            'p75': quartiles[2] if quartiles else max(values)
+        }
+
+    @staticmethod
+    def format_number(value: float, precision: int = 1) -> str:
+        """Format a number with appropriate precision."""
+        if value == 0:
+            return "0"
+        elif value < 0.1:
+            return f"{value:.3f}"
+        elif value < 1:
+            return f"{value:.2f}"
+        else:
+            return f"{value:.{precision}f}"
+
+    @staticmethod
+    def format_size(bytes_value: float) -> str:
+        """Format byte values in appropriate units."""
+        if bytes_value < 1024:
+            return f"{bytes_value:.0f}B"
+        elif bytes_value < 1024 * 1024:
+            return f"{bytes_value/1024:.1f}KB"
+        elif bytes_value < 1024 * 1024 * 1024:
+            return f"{bytes_value/(1024*1024):.1f}MB"
+        else:
+            return f"{bytes_value/(1024*1024*1024):.1f}GB"
+
+
+class TableFormatter:
+    """Utility class for creating well-formatted tables."""
+
+    @staticmethod
+    def calculate_column_widths(headers: List[str],
+                                rows: List[List[str]]) -> List[int]:
+        """Calculate optimal column widths based on content."""
+        widths = [len(header) for header in headers]
+
+        for row in rows:
+            for i, cell in enumerate(row):
+                if i < len(widths):
+                    widths[i] = max(widths[i], len(str(cell)))
+
+        # Add padding
+        return [w + 2 for w in widths]
+
+    @staticmethod
+    def format_row(values: List[str], widths: List[int],
+                   alignments: List[str] = None) -> str:
+        """Format a single row with proper alignment."""
+        if not alignments:
+            alignments = ['<'] * len(values)
+
+        formatted_cells = []
+        for value, width, align in zip(values, widths, alignments):
+            if align == '>':
+                formatted_cells.append(f"{value:>{width}}")
+            elif align == '^':
+                formatted_cells.append(f"{value:^{width}}")
+            else:
+                formatted_cells.append(f"{value:<{width}}")
+
+        return "|".join(formatted_cells)
+
+    @staticmethod
+    def create_separator(widths: List[int]) -> str:
+        """Create a separator line for the table."""
+        return "+".join(["-" * width for width in widths])
 
 
 # Configure logging
@@ -190,7 +292,7 @@ def find_available_files(data_dir: Path,
     available_files = []
 
     # Look for files in different preprocessing methods
-    for method_dir in ['pypdf', 'unstructured', 'marker']:
+    for method_dir in ['pypdf', 'unstructured', 'marker', 'markitdown']:
         if methods_filter and method_dir not in methods_filter:
             continue
 
@@ -314,14 +416,36 @@ def process_single_combination(document: ProcessedDocument,
         }
 
 
-def display_performance_summary(results: List[Dict[str, Any]], show_metrics: bool = True):
-    """Display comprehensive performance summary."""
+def display_performance_summary(results: List[Dict[str, Any]],
+                                show_metrics: bool = True):
+    """Display comprehensive performance summary with enhanced formatting."""
     if not show_metrics or not results:
         return
 
-    print("\n" + "="*100)
-    print("                           PERFORMANCE SUMMARY")
-    print("="*100)
+    print("\n" + "="*120)
+    print("                              ENHANCED PERFORMANCE SUMMARY")
+    print("="*120)
+
+    # Separate successful and failed results
+    successful_results = [r for r in results if not r.get('error')]
+    failed_results = [r for r in results if r.get('error')]
+
+    if successful_results:
+        _display_detailed_results(successful_results)
+        _display_strategy_comparison(successful_results)
+        _display_document_analysis(successful_results)
+        _display_resource_utilization(successful_results)
+
+    if failed_results:
+        _display_error_analysis(failed_results)
+
+    _display_overall_summary(successful_results, failed_results)
+
+
+def _display_detailed_results(results: List[Dict[str, Any]]):
+    """Display detailed results with enhanced table formatting."""
+    print("\n📊 DETAILED PERFORMANCE RESULTS")
+    print("-" * 120)
 
     # Group by document
     documents = {}
@@ -331,62 +455,295 @@ def display_performance_summary(results: List[Dict[str, Any]], show_metrics: boo
             documents[doc_id] = []
         documents[doc_id].append(result)
 
-    total_chunks = 0
-    total_time = 0
-    peak_ram = 0
-    peak_gpu = 0
-    total_combinations = 0
-
     for doc_id, doc_results in documents.items():
-        print(f"\nDocument: {doc_id}")
-        print("="*100)
+        print(f"\n📄 Document: {doc_id}")
 
-        # Header
-        header = (
-            f"{'Strategy/Parser':<15} {'RAM':<8} {'CPU %':<8} {'GPU %':<8} "
-            f"{'GPU Mem':<10} {'Time (s)':<10} {'Chunks':<8} {'Avg Size':<10} {'Min/Max':<15}"
-        )
-        print(header)
-        print("-" * len(header))
+        # Prepare table data
+        headers = [
+            "Strategy/Method", "Time (s)", "RAM (MB)", "CPU %",
+            "GPU %", "GPU Mem", "Chunks", "Avg Size", "Min/Max Size"
+        ]
 
-        # Results for this document
+        rows = []
         for result in doc_results:
-            if result['error']:
-                strategy_parser = f"{result['preprocessing_method']}/{result['strategy_name']}"
-                print(f"{strategy_parser:<15} {'ERROR':<8} {'ERROR':<8} {'ERROR':<8} "
-                      f"{'ERROR':<10} {'ERROR':<10} {'ERROR':<8} {'ERROR':<10} {'ERROR':<15}")
-                continue
-
             metrics = result['metrics']
             stats = result['statistics']
 
-            strategy_parser = f"{result['preprocessing_method']}/{result['strategy_name']}"
-            ram_mb = f"{metrics['memory_usage']:.1f}"
-            cpu_pct = f"{metrics['cpu_usage_percent']:.1f}"
-            gpu_pct = f"{metrics['gpu_usage_percent']:.1f}"
-            gpu_mem = f"{metrics['gpu_memory_usage']:.0f}" if metrics['gpu_memory_usage'] > 0 else "0"
-            time_s = f"{metrics['processing_time']:.2f}"
-            chunks = f"{stats['total_chunks']}"
-            avg_size = f"{stats['avg_chunk_size']:.0f}" if stats['avg_chunk_size'] > 0 else "0"
-            min_max = f"{stats['min_chunk_size']}/{stats['max_chunk_size']}" if stats['min_chunk_size'] > 0 else "0/0"
+            strategy_method = f"{result['preprocessing_method']}/{result['strategy_name']}"
+            time_val = StatisticalUtils.format_number(
+                metrics['processing_time'], 2)
+            ram_val = StatisticalUtils.format_number(
+                metrics['memory_usage'], 1)
+            cpu_val = StatisticalUtils.format_number(
+                metrics['cpu_usage_percent'], 1)
+            gpu_val = StatisticalUtils.format_number(
+                metrics['gpu_usage_percent'], 1)
+            gpu_mem = StatisticalUtils.format_size(
+                metrics['gpu_memory_usage'] * 1024 * 1024) if metrics['gpu_memory_usage'] > 0 else "0"
+            chunks_val = str(stats['total_chunks'])
+            avg_size = StatisticalUtils.format_number(
+                stats['avg_chunk_size'], 0)
+            min_max = f"{stats['min_chunk_size']:.0f}/{stats['max_chunk_size']:.0f}"
 
-            print(f"{strategy_parser:<15} {ram_mb:<8} {cpu_pct:<8} {gpu_pct:<8} "
-                  f"{gpu_mem:<10} {time_s:<10} {chunks:<8} {avg_size:<10} {min_max:<15}")
+            rows.append([
+                strategy_method, time_val, ram_val, cpu_val,
+                gpu_val, gpu_mem, chunks_val, avg_size, min_max
+            ])
 
-            # Update totals
-            total_chunks += stats['total_chunks']
-            total_time += metrics['processing_time']
-            peak_ram = max(peak_ram, metrics['memory_usage'])
-            peak_gpu = max(peak_gpu, metrics['gpu_memory_usage'])
-            total_combinations += 1
+        # Calculate column widths and display table
+        widths = TableFormatter.calculate_column_widths(headers, rows)
+        alignments = ['<', '>', '>', '>', '>', '>', '>', '>', '>']
 
-    # Overall summary
-    avg_chunk_size = total_chunks / total_combinations if total_combinations > 0 else 0
-    print("\n" + "="*100)
-    print(f"TOTALS: {total_chunks} chunks | {total_time:.2f}s total | "
-          f"{peak_ram:.1f}MB peak RAM | {peak_gpu:.0f}MB peak GPU | "
-          f"{avg_chunk_size:.0f} avg chars/chunk")
-    print("="*100)
+        # Print table
+        print("  " + TableFormatter.format_row(headers, widths, alignments))
+        print("  " + TableFormatter.create_separator(widths))
+
+        for row in rows:
+            print("  " + TableFormatter.format_row(row, widths, alignments))
+
+
+def _display_strategy_comparison(results: List[Dict[str, Any]]):
+    """Display strategy comparison matrix."""
+    print("\n🔄 STRATEGY COMPARISON MATRIX")
+    print("-" * 120)
+
+    # Group by strategy
+    strategies = {}
+    for result in results:
+        strategy = result['strategy_name']
+        if strategy not in strategies:
+            strategies[strategy] = []
+        strategies[strategy].append(result)
+
+    headers = [
+        "Strategy", "Avg Time", "Avg RAM", "Avg Chunks",
+        "Avg Size", "Success Rate", "Efficiency", "Best For"
+    ]
+
+    rows = []
+    for strategy, strategy_results in strategies.items():
+        # Calculate averages
+        times = [r['metrics']['processing_time'] for r in strategy_results]
+        rams = [r['metrics']['memory_usage'] for r in strategy_results]
+        chunk_counts = [r['statistics']['total_chunks']
+                        for r in strategy_results]
+        chunk_sizes = [r['statistics']['avg_chunk_size']
+                       for r in strategy_results if r['statistics']['avg_chunk_size'] > 0]
+
+        time_stats = StatisticalUtils.calculate_stats(times)
+        ram_stats = StatisticalUtils.calculate_stats(rams)
+
+        avg_time = StatisticalUtils.format_number(time_stats['mean'], 2)
+        avg_ram = StatisticalUtils.format_number(ram_stats['mean'], 1)
+        avg_chunks = StatisticalUtils.format_number(
+            sum(chunk_counts) / len(chunk_counts), 0)
+        avg_size = StatisticalUtils.format_number(
+            sum(chunk_sizes) / len(chunk_sizes) if chunk_sizes else 0, 0)
+        success_rate = "100%"  # All in successful_results
+
+        # Calculate efficiency (chunks per second per MB)
+        efficiency = sum(chunk_counts) / (sum(times) * sum(rams)
+                                          ) if sum(times) > 0 and sum(rams) > 0 else 0
+        efficiency_str = StatisticalUtils.format_number(
+            efficiency * 1000, 3)  # Scale for readability
+
+        # Determine best use case
+        best_for = _get_strategy_recommendation(
+            strategy, time_stats['mean'], chunk_counts)
+
+        rows.append([
+            strategy, avg_time + "s", avg_ram + "MB", avg_chunks,
+            avg_size, success_rate, efficiency_str, best_for
+        ])
+
+    # Display table
+    widths = TableFormatter.calculate_column_widths(headers, rows)
+    alignments = ['<', '>', '>', '>', '>', '>', '>', '<']
+
+    print("  " + TableFormatter.format_row(headers, widths, alignments))
+    print("  " + TableFormatter.create_separator(widths))
+
+    for row in rows:
+        print("  " + TableFormatter.format_row(row, widths, alignments))
+
+
+def _get_strategy_recommendation(strategy: str, avg_time: float, chunk_counts: List[int]) -> str:
+    """Get recommendation for strategy based on performance characteristics."""
+    recommendations = {
+        'fixed_size': 'Speed',
+        'sliding_langchain': 'Balance',
+        'sliding_unstructured': 'Structure',
+        'semantic': 'Quality'
+    }
+
+    base_rec = recommendations.get(strategy, 'General')
+
+    if avg_time < 1.0:
+        return f"{base_rec}/Fast"
+    elif avg_time > 5.0:
+        return f"{base_rec}/Thorough"
+    else:
+        return base_rec
+
+
+def _display_document_analysis(results: List[Dict[str, Any]]):
+    """Display document processing efficiency analysis."""
+    print("\n📈 DOCUMENT PROCESSING EFFICIENCY")
+    print("-" * 120)
+
+    # Group by document
+    docs = {}
+    for result in results:
+        doc_id = result['document_id']
+        if doc_id not in docs:
+            docs[doc_id] = []
+        docs[doc_id].append(result)
+
+    # Calculate document statistics
+    doc_stats = []
+    for doc_id, doc_results in docs.items():
+        times = [r['metrics']['processing_time'] for r in doc_results]
+        rams = [r['metrics']['memory_usage'] for r in doc_results]
+
+        avg_time = sum(times) / len(times)
+        avg_ram = sum(rams) / len(rams)
+
+        doc_stats.append({
+            'doc_id': doc_id,
+            'avg_time': avg_time,
+            'avg_ram': avg_ram,
+            'strategy_count': len(doc_results)
+        })
+
+    # Sort by processing time
+    doc_stats.sort(key=lambda x: x['avg_time'])
+
+    print(
+        f"  📝 Fastest Document: {doc_stats[0]['doc_id']} ({StatisticalUtils.format_number(doc_stats[0]['avg_time'], 2)}s avg)")
+    print(
+        f"  🐌 Slowest Document: {doc_stats[-1]['doc_id']} ({StatisticalUtils.format_number(doc_stats[-1]['avg_time'], 2)}s avg)")
+
+    # Memory analysis
+    doc_stats.sort(key=lambda x: x['avg_ram'])
+    print(
+        f"  💾 Most Memory Efficient: {doc_stats[0]['doc_id']} ({StatisticalUtils.format_number(doc_stats[0]['avg_ram'], 1)}MB avg)")
+    print(
+        f"  🔥 Highest Memory Usage: {doc_stats[-1]['doc_id']} ({StatisticalUtils.format_number(doc_stats[-1]['avg_ram'], 1)}MB avg)")
+
+
+def _display_resource_utilization(results: List[Dict[str, Any]]):
+    """Display resource utilization summary."""
+    print("\n⚡ RESOURCE UTILIZATION SUMMARY")
+    print("-" * 120)
+
+    # Collect all metrics
+    times = [r['metrics']['processing_time'] for r in results]
+    rams = [r['metrics']['memory_usage'] for r in results]
+    cpus = [r['metrics']['cpu_usage_percent'] for r in results]
+    gpus = [r['metrics']['gpu_usage_percent']
+            for r in results if r['metrics']['gpu_usage_percent'] > 0]
+
+    time_stats = StatisticalUtils.calculate_stats(times)
+    ram_stats = StatisticalUtils.calculate_stats(rams)
+    cpu_stats = StatisticalUtils.calculate_stats(cpus)
+
+    print(f"  ⏱️  Processing Time: {StatisticalUtils.format_number(time_stats['mean'], 2)}s avg, "
+          f"{StatisticalUtils.format_number(time_stats['median'], 2)}s median "
+          f"({StatisticalUtils.format_number(time_stats['min'], 2)}s - {StatisticalUtils.format_number(time_stats['max'], 2)}s)")
+
+    print(f"  💾 Memory Usage: {StatisticalUtils.format_number(ram_stats['mean'], 1)}MB avg, "
+          f"{StatisticalUtils.format_number(ram_stats['median'], 1)}MB median "
+          f"({StatisticalUtils.format_number(ram_stats['min'], 1)}MB - {StatisticalUtils.format_number(ram_stats['max'], 1)}MB)")
+
+    print(f"  🖥️  CPU Usage: {StatisticalUtils.format_number(cpu_stats['mean'], 1)}% avg, "
+          f"{StatisticalUtils.format_number(cpu_stats['median'], 1)}% median")
+
+    if gpus:
+        gpu_stats = StatisticalUtils.calculate_stats(gpus)
+        print(f"  🎮 GPU Usage: {StatisticalUtils.format_number(gpu_stats['mean'], 1)}% avg, "
+              f"{StatisticalUtils.format_number(gpu_stats['median'], 1)}% median")
+
+    # Performance recommendations
+    print("\n  💡 OPTIMIZATION RECOMMENDATIONS:")
+    if ram_stats['max'] > 1000:
+        print(
+            "    • Consider processing documents in smaller batches to reduce memory usage")
+    if time_stats['max'] > 10:
+        print(
+            "    • Some documents are slow to process - consider preprocessing optimization")
+    if cpu_stats['mean'] < 50:
+        print(
+            "    • CPU utilization is low - parallel processing could improve performance")
+
+
+def _display_error_analysis(failed_results: List[Dict[str, Any]]):
+    """Display analysis of failed processing attempts."""
+    print("\n❌ ERROR ANALYSIS")
+    print("-" * 120)
+
+    print(f"  Total Failed Attempts: {len(failed_results)}")
+
+    # Group errors by type
+    error_types = {}
+    strategy_errors = {}
+
+    for result in failed_results:
+        error_msg = str(result.get('error', 'Unknown error'))
+        error_type = error_msg.split(':')[0] if ':' in error_msg else error_msg
+
+        if error_type not in error_types:
+            error_types[error_type] = 0
+        error_types[error_type] += 1
+
+        strategy = result['strategy_name']
+        if strategy not in strategy_errors:
+            strategy_errors[strategy] = 0
+        strategy_errors[strategy] += 1
+
+    # Display error breakdown
+    if error_types:
+        print("    Error Types:")
+        for error_type, count in sorted(error_types.items(), key=lambda x: x[1], reverse=True):
+            print(f"      • {error_type}: {count} occurrences")
+
+    if strategy_errors:
+        print("    Errors by Strategy:")
+        for strategy, count in sorted(strategy_errors.items(), key=lambda x: x[1], reverse=True):
+            print(f"      • {strategy}: {count} failures")
+
+
+def _display_overall_summary(successful_results: List[Dict[str, Any]],
+                             failed_results: List[Dict[str, Any]]):
+    """Display overall summary statistics."""
+    total_combinations = len(successful_results) + len(failed_results)
+    success_rate = (len(successful_results) /
+                    total_combinations * 100) if total_combinations > 0 else 0
+
+    print(f"\n🎯 OVERALL SUMMARY")
+    print("=" * 120)
+
+    if successful_results:
+        total_chunks = sum(r['statistics']['total_chunks']
+                           for r in successful_results)
+        total_time = sum(r['metrics']['processing_time']
+                         for r in successful_results)
+        peak_ram = max(r['metrics']['memory_usage']
+                       for r in successful_results)
+
+        print(
+            f"  📊 Total Combinations: {total_combinations} | Success Rate: {StatisticalUtils.format_number(success_rate, 1)}%")
+        print(f"  📦 Total Chunks Generated: {total_chunks:,}")
+        print(
+            f"  ⏱️  Total Processing Time: {StatisticalUtils.format_number(total_time, 2)}s")
+        print(
+            f"  💾 Peak Memory Usage: {StatisticalUtils.format_number(peak_ram, 1)}MB")
+        print(
+            f"  ⚡ Average Throughput: {StatisticalUtils.format_number(total_chunks / total_time if total_time > 0 else 0, 1)} chunks/second")
+    else:
+        print(
+            f"  ❌ No successful processing attempts out of {total_combinations} total combinations")
+
+    print("=" * 120)
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -449,7 +806,7 @@ def main():
         strategies_config = {
             'fixed_size': {
                 'chunk_size': 512,
-                'overlap': 50
+                'chunk_overlap': 0
             },
             'sliding_langchain': {
                 'chunk_size': 1000,
