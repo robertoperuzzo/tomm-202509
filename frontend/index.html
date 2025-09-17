@@ -30,40 +30,51 @@
 <body>
     <div class="app-container">
         <header class="app-header">
-            <h1>Document Comparison by Chunking Strategy</h1>
-            <p>Find relevant documents and compare how different chunking strategies process them</p>
+            <h1>Conversational Document Search</h1>
+            <p>Ask questions about the embedded documents and see how different chunking strategies find relevant content</p>
         </header>
 
-        <div id="searchbox-container">
-            <div id="searchbox"></div>
+        <div id="conversation-container">
+            <div id="conversation-history"></div>
+            <div id="question-input-container">
+                <div id="searchbox"></div>
+                <div class="input-suggestions">
+                    <span class="suggestion-label">Try asking:</span>
+                    <button class="suggestion-btn" onclick="askQuestion('What is dynamic backtracking?')">What is dynamic backtracking?</button>
+                    <button class="suggestion-btn" onclick="askQuestion('How do search algorithms work?')">How do search algorithms work?</button>
+                    <button class="suggestion-btn" onclick="askQuestion('Explain constraint satisfaction problems')">Explain constraint satisfaction problems</button>
+                </div>
+            </div>
         </div>
 
         <div id="search-results-container">
-            <div class="facets-container">
-                <div id="stats"></div>
-            </div>
-
-            <div class="search-results-list">
-                <div class="results-grid">
-                    <div class="column">
-                        <h3>Fixed Size</h3>
-                        <div id="hits-fixed"></div>
-                    </div>
-                    <div class="column">
-                        <h3>Semantic</h3>
-                        <div id="hits-semantic"></div>
-                    </div>
-                    <div class="column">
-                        <h3>Sliding (LangChain)</h3>
-                        <div id="hits-sliding-lc"></div>
-                    </div>
-                    <div class="column">
-                        <h3>Sliding (Unstructured)</h3>
-                        <div id="hits-sliding-un"></div>
+            <div class="conversation-results">
+                <div class="results-header">
+                    <div id="stats"></div>
+                    <div class="strategy-labels">
+                        <span class="strategy-label">Fixed Size</span>
+                        <span class="strategy-label">Semantic</span>
+                        <span class="strategy-label">Sliding (LangChain)</span>
+                        <span class="strategy-label">Sliding (Unstructured)</span>
                     </div>
                 </div>
 
-                <div id="pagination"></div>
+                <div class="search-results-list">
+                    <div class="results-grid">
+                        <div class="column">
+                            <div id="hits-fixed"></div>
+                        </div>
+                        <div class="column">
+                            <div id="hits-semantic"></div>
+                        </div>
+                        <div class="column">
+                            <div id="hits-sliding-lc"></div>
+                        </div>
+                        <div class="column">
+                            <div id="hits-sliding-un"></div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

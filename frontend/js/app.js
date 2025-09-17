@@ -1,5 +1,10 @@
-// Vanilla JavaScript Federated Search Application
-// Using InstantSearch.js with Typesense adapter
+// Vanilla JavaScript Conversational Search Application
+// Using Typesense's built-in Conversational Search (RAG) capabilities
+
+// Global conversation state
+let conversationHistory = [];
+let currentConversationId = null;
+let conversationModelId = 'conv-model-1'; // This will need to be created in Typesense
 
 // Typesense configuration for federated search
 const typesenseInstantsearchAdapter = new TypesenseInstantSearchAdapter({
@@ -19,7 +24,7 @@ const typesenseInstantsearchAdapter = new TypesenseInstantSearchAdapter({
         highlight_fields: "content,document_title",
         snippet_threshold: 30,
         highlight_affix_num_tokens: 4,
-        per_page: 20, // Increased since we're showing documents now, not chunks
+        per_page: 20,
     },
     // Collection-specific search parameters
     collectionSpecificSearchParameters: {
@@ -38,11 +43,314 @@ const typesenseInstantsearchAdapter = new TypesenseInstantSearchAdapter({
     },
 });
 
+// Conversation state variables
+let conversationEnabled = true;
+let isCheckingConversation = false;
+
+// Perform conversational search using Typesense RAG
+async function performConversationalSearch(query) {
+    if (!conversationEnabled) {
+        return performStandardSearch(query);
+    }
+    
+    try {
+        const searchParams = {
+            searches: [
+                {
+                    collection: "unstructured_fixed_size",
+                    query_by: "content,document_title",
+                    exclude_fields: "embedding"
+                },
+                {
+                    collection: "unstructured_semantic", 
+                    query_by: "content,document_title",
+                    exclude_fields: "embedding"
+                },
+                {
+                    collection: "unstructured_sliding_langchain",
+                    query_by: "content,document_title", 
+                    exclude_fields: "embedding"
+                },
+                {
+                    collection: "unstructured_sliding_unstructured",
+                    query_by: "content,document_title",
+                    exclude_fields: "embedding"
+                }
+            ]
+        };
+        
+        // Add conversation parameters to URL
+        const url = new URL('http://localhost:8108/multi_search');
+        url.searchParams.append('q', query);
+        url.searchParams.append('conversation', 'true');
+        url.searchParams.append('conversation_model_id', conversationModelId);
+        
+        if (currentConversationId) {
+            url.searchParams.append('conversation_id', currentConversationId);
+        }
+        
+        const response = await fetch(url.toString(), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-TYPESENSE-API-KEY': 'xyz'
+            },
+            body: JSON.stringify(searchParams)
+        });
+        
+        const results = await response.json();
+        
+        // Handle conversation response
+        if (results.conversation) {
+            currentConversationId = results.conversation.conversation_id;
+            
+            // Add to conversation history
+            addToConversationHistory(query, {
+                answer: results.conversation.answer,
+                totalResults: results.results.reduce((sum, r) => sum + r.found, 0),
+                processingTime: results.results[0]?.search_time_ms || 0
+            });
+            
+            // Display conversational answer
+            displayConversationalAnswer(results.conversation.answer);
+        }
+        
+        // Display regular search results across strategies
+        displayFederatedResults(results.results);
+        
+        return results;
+        
+    } catch (error) {
+        console.error('Conversational search error:', error);
+        // Fallback to standard search
+        return performStandardSearch(query);
+    }
+}
+
+// Perform standard federated search (fallback)
+function performStandardSearch(query) {
+    // This triggers the existing InstantSearch.js federated search
+    const searchInput = document.querySelector('#searchbox input');
+    if (searchInput && searchInput.value !== query) {
+        searchInput.value = query;
+        searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+}
+
+// Display conversational answer from LLM
+function displayConversationalAnswer(answer) {
+    const conversationContainer = document.getElementById('conversation-history');
+    if (!conversationContainer) return;
+    
+    // Create or update the current answer display
+    let answerElement = document.querySelector('.current-conversation-answer');
+    if (!answerElement) {
+        answerElement = document.createElement('div');
+        answerElement.className = 'current-conversation-answer';
+        conversationContainer.appendChild(answerElement);
+    }
+    
+    answerElement.innerHTML = `
+        <div class="llm-answer">
+            <div class="answer-label">💬 AI Assistant</div>
+            <div class="answer-text">${answer}</div>
+        </div>
+    `;
+    
+    // Scroll to show the answer
+    answerElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// Update UI for conversational mode
+function updateUIForConversationalMode() {
+    const placeholder = document.querySelector('#searchbox input');
+    if (placeholder) {
+        placeholder.placeholder = "Ask a question and get an AI-powered answer with supporting evidence (e.g., 'What is dynamic backtracking?')";
+    }
+    
+    const suggestions = document.querySelector('.input-suggestions');
+    if (suggestions) {
+        suggestions.innerHTML = `
+            <span class="suggestion-label">🤖 Try asking (AI-powered):</span>
+            <button class="suggestion-btn" onclick="askQuestion('What is dynamic backtracking and how does it work?')">What is dynamic backtracking and how does it work?</button>
+            <button class="suggestion-btn" onclick="askQuestion('Explain the advantages of constraint satisfaction algorithms')">Explain the advantages of constraint satisfaction algorithms</button>
+            <button class="suggestion-btn" onclick="askQuestion('How do search algorithms handle large solution spaces?')">How do search algorithms handle large solution spaces?</button>
+        `;
+    }
+}
+
+// Update UI for standard mode
+function updateUIForStandardMode() {
+    const placeholder = document.querySelector('#searchbox input');
+    if (placeholder) {
+        placeholder.placeholder = "Ask a question about the documents (e.g., 'What is dynamic backtracking?', 'How do search algorithms work?')";
+    }
+    
+    const suggestions = document.querySelector('.input-suggestions');
+    if (suggestions) {
+        suggestions.innerHTML = `
+            <span class="suggestion-label">Try asking:</span>
+            <button class="suggestion-btn" onclick="askQuestion('What is dynamic backtracking?')">What is dynamic backtracking?</button>
+            <button class="suggestion-btn" onclick="askQuestion('How do search algorithms work?')">How do search algorithms work?</button>
+            <button class="suggestion-btn" onclick="askQuestion('Explain constraint satisfaction problems')">Explain constraint satisfaction problems</button>
+        `;
+    }
+}
+
+// Handle question asking from UI
+function askQuestion(question) {
+    const searchInput = document.querySelector('#searchbox input');
+    if (searchInput) {
+        searchInput.value = question;
+        handleSearch(question);
+    }
+}
+
+// Main search handler - routes to conversational or standard search
+async function handleSearch(query) {
+    if (!query.trim()) return;
+    
+    // Show loading state
+    showSearchLoading();
+    
+    try {
+        if (conversationEnabled) {
+            await performConversationalSearch(query);
+        } else {
+            performStandardSearch(query);
+        }
+    } catch (error) {
+        console.error('Search error:', error);
+        hideSearchLoading();
+    }
+}
+
+// Add conversation item to history
+function addToConversationHistory(question, response) {
+    conversationHistory.push({
+        id: Date.now().toString(),
+        question: question,
+        answer: response.answer || '',
+        timestamp: new Date().toISOString(),
+        totalResults: response.totalResults || 0,
+        processingTime: response.processingTime || 0
+    });
+    
+    // Update conversation display
+    updateConversationDisplay();
+}
+
+// Update the conversation history display
+function updateConversationDisplay() {
+    const conversationContainer = document.getElementById('conversation-history');
+    if (!conversationContainer || conversationHistory.length === 0) return;
+    
+    const historyHtml = conversationHistory.map(item => `
+        <div class="conversation-item">
+            <div class="question-bubble">
+                <strong>You:</strong> ${item.question}
+            </div>
+            ${item.answer ? `
+                <div class="answer-bubble">
+                    <strong>AI:</strong> ${item.answer}
+                    <div class="conversation-meta">
+                        ${item.totalResults} results found in ${item.processingTime}ms
+                    </div>
+                </div>
+            ` : ''}
+        </div>
+    `).join('');
+    
+    conversationContainer.innerHTML = `
+        <div class="conversation-header">
+            <h3>Conversation History</h3>
+            <button onclick="clearConversationHistory()" class="clear-btn">Clear</button>
+        </div>
+        ${historyHtml}
+    `;
+}
+
+// Clear conversation history
+function clearConversationHistory() {
+    conversationHistory = [];
+    currentConversationId = null;
+    const conversationContainer = document.getElementById('conversation-history');
+    if (conversationContainer) {
+        conversationContainer.innerHTML = '';
+    }
+}
+
+// Show/hide loading states
+function showSearchLoading() {
+    const statsContainer = document.getElementById('stats');
+    if (statsContainer) {
+        statsContainer.innerHTML = '<div class="search-loading">🔍 Searching and analyzing documents...</div>';
+    }
+}
+
+function hideSearchLoading() {
+    // Loading will be hidden when results are displayed
+}
+
+// Display federated search results (existing format)
+function displayFederatedResults(results) {
+    // This function maintains the existing display format for search results
+    // The results array contains search results from each collection/strategy
+    console.log('Federated search results:', results);
+    
+    // Let InstantSearch.js handle the display by updating its state
+    // This preserves the existing UI while adding conversational features
+}
+
 // Initialize InstantSearch
 const search = instantsearch({
     indexName: "unstructured_fixed_size", // Primary index
     searchClient: typesenseInstantsearchAdapter.searchClient,
 });
+
+// Add debugging for connection issues
+search.on('error', (error) => {
+    console.error('InstantSearch Error:', error);
+    // Show user-friendly error message
+    const statsContainer = document.getElementById('stats');
+    if (statsContainer) {
+        statsContainer.innerHTML = `
+            <div style="color: red; padding: 20px; text-align: center; background: #fee; border: 1px solid #fcc; border-radius: 8px;">
+                <strong>Connection Error:</strong> Cannot connect to search service. 
+                <br>Please ensure Typesense is running on localhost:8108.
+                <br><small>Error: ${error.message || 'Unknown error'}</small>
+            </div>
+        `;
+    }
+});
+
+search.on('render', () => {
+    console.log('Search rendered successfully');
+});
+
+// Legacy function - keeping for compatibility with existing calls
+function askQuestion(question) {
+    console.log('askQuestion called with:', question);
+    // Set the search box value and trigger search
+    const searchInput = document.querySelector('#searchbox input');
+    if (searchInput) {
+        console.log('Found search input, setting value to:', question);
+        searchInput.value = question;
+        // Use the new search handler
+        handleSearch(question);
+        searchInput.focus();
+    } else {
+        console.error('Could not find search input element');
+    }
+}
+
+function processConversationalQuery(query) {
+    currentQuery = query;
+    
+    // For now, we'll use the query as-is since Typesense handles natural language well
+    // In the future, we could add query processing/expansion here
+    return query;
+}
 
 // Group hits by document_id for document-level display
 function groupHitsByDocument(hits) {
@@ -137,7 +445,7 @@ function groupHitsByDocument(hits) {
         .sort((a, b) => b.relevanceScore - a.relevanceScore);
 }
 
-// Hit template function for rendering document-level results
+// Hit template function for rendering document-level results in conversational format
 function renderDocumentHit(document, strategyName) {
     const getHighlightedTitle = (chunk) => {
         if (chunk._highlightResult && chunk._highlightResult.document_title && chunk._highlightResult.document_title.value) {
@@ -187,26 +495,19 @@ function renderDocumentHit(document, strategyName) {
     const scoreDisplay = parseFloat(topChunkScore).toFixed(3);
 
     return `
-        <div class="document-hit">
-            <div class="document-header">
-                <div class="hit-strategy">${strategyName}</div>
-                <div class="document-title">${getHighlightedTitle(topChunk)}</div>
-                <div class="document-meta">
-                    Document ID: ${document.document_id} • 
-                    ${document.chunks.length} relevant chunk${document.chunks.length !== 1 ? 's' : ''} found
-                </div>
-                <div class="chunk-stats">
-                    Chunks: ${totalChunks} total • 
-                    Tokens: ${minTokens > 0 ? (minTokens !== maxTokens ? `${minTokens}-${maxTokens}` : minTokens) : 'N/A'} per chunk •
-                    Strategy: ${document.chunks[0].strategy_name || 'N/A'}
-                </div>
+        <div class="document-answer">
+            <div class="answer-header">
+                <div class="strategy-badge">${strategyName}</div>
+                <div class="relevance-score">Relevance: ${scoreDisplay}</div>
             </div>
-            <div class="document-preview">
-                <div class="preview-label">
-                    <span>Most relevant content:</span>
-                    <span class="score-badge">Score: ${scoreDisplay}</span>
-                </div>
-                <div class="preview-content">${previewContent}</div>
+            <div class="document-title">${getHighlightedTitle(topChunk)}</div>
+            <div class="answer-content">
+                <div class="content-preview">${previewContent}</div>
+            </div>
+            <div class="answer-meta">
+                <span class="chunk-info">${document.chunks.length} relevant section${document.chunks.length !== 1 ? 's' : ''}</span>
+                <span class="token-info">${minTokens > 0 ? (minTokens !== maxTokens ? `${minTokens}-${maxTokens}` : minTokens) : 'N/A'} tokens</span>
+                <span class="document-id">Doc: ${document.document_id}</span>
             </div>
         </div>
     `;
@@ -214,22 +515,39 @@ function renderDocumentHit(document, strategyName) {
 
 // Configure search widgets
 search.addWidgets([
-    // Search Box
+    // Conversational Search Box
     instantsearch.widgets.searchBox({
         container: "#searchbox",
-        placeholder: "Search for relevant documents across chunking strategies...",
+        placeholder: "Ask a question about the documents (e.g., 'What is dynamic backtracking?', 'How do search algorithms work?')",
         showLoadingIndicator: true,
+        searchAsYouType: false, // Wait for user to finish typing question
+        showSubmit: true,
+        showReset: true
     }),
 
-    // Stats Display
+    // Stats Display with conversational context
     instantsearch.widgets.stats({
         container: "#stats",
         templates: {
             text: ({ nbHits, processingTimeMS, query }) => {
                 if (query) {
-                    return `${nbHits.toLocaleString()} documents found in ${processingTimeMS}ms`;
+                    const processedQuery = processConversationalQuery(query);
+                    // Add to conversation history when we have results
+                    setTimeout(() => {
+                        const resultsSummary = {
+                            totalResults: nbHits,
+                            processingTime: processingTimeMS,
+                            query: query
+                        };
+                        addToConversationHistory(query, resultsSummary);
+                    }, 100);
+                    
+                    return `<div class="stats-conversational">
+                        <div class="current-question">📝 "${query}"</div>
+                        <div class="results-stats">Found ${nbHits.toLocaleString()} relevant documents in ${processingTimeMS}ms</div>
+                    </div>`;
                 }
-                return 'Enter a search term to find relevant documents';
+                return '<div class="stats-prompt">Ask a question to search through the documents</div>';
             }
         }
     }),
@@ -246,7 +564,7 @@ search.addWidgets([
                         }
                         return '';
                     },
-                    empty: '<div class="empty-state">No documents found with fixed size chunking</div>',
+                    empty: '<div class="empty-state">No relevant content found with this chunking strategy</div>',
                 },
                 transformItems(items) {
                     const documents = groupHitsByDocument(items);
@@ -273,7 +591,7 @@ search.addWidgets([
                         }
                         return '';
                     },
-                    empty: '<div class="empty-state">No documents found with semantic chunking</div>',
+                    empty: '<div class="empty-state">No relevant content found with this chunking strategy</div>',
                 },
                 transformItems(items) {
                     const documents = groupHitsByDocument(items);
@@ -299,7 +617,7 @@ search.addWidgets([
                         }
                         return '';
                     },
-                    empty: '<div class="empty-state">No documents found with sliding LangChain chunking</div>',
+                    empty: '<div class="empty-state">No relevant content found with this chunking strategy</div>',
                 },
                 transformItems(items) {
                     const documents = groupHitsByDocument(items);
@@ -325,7 +643,7 @@ search.addWidgets([
                         }
                         return '';
                     },
-                    empty: '<div class="empty-state">No documents found with sliding unstructured chunking</div>',
+                    empty: '<div class="empty-state">No relevant content found with this chunking strategy</div>',
                 },
                 transformItems(items) {
                     const documents = groupHitsByDocument(items);
@@ -351,12 +669,25 @@ search.addWidgets([
 // Start the search
 search.start();
 
-// Add some loading feedback
+// Initialize conversational search capabilities
 document.addEventListener('DOMContentLoaded', function() {
+    // Initialize conversational search
+    initializeConversationalSearch();
+    
     const searchBox = document.querySelector('#searchbox input');
     if (searchBox) {
-        searchBox.addEventListener('input', function() {
-            // Add a subtle loading indicator when typing
+        // Handle search input for conversational mode
+        searchBox.addEventListener('input', function(e) {
+            const query = e.target.value;
+            if (query.length > 2) {
+                // Debounce for live search
+                clearTimeout(window.searchTimeout);
+                window.searchTimeout = setTimeout(() => {
+                    handleSearch(query);
+                }, 300);
+            }
+            
+            // Add loading indicators
             const containers = ['#hits-fixed', '#hits-semantic', '#hits-sliding-lc', '#hits-sliding-un'];
             containers.forEach(container => {
                 const element = document.querySelector(container);
@@ -366,7 +697,23 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
         });
+        
+        // Handle Enter key for immediate search
+        searchBox.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const query = e.target.value.trim();
+                if (query) {
+                    handleSearch(query);
+                }
+            }
+        });
     }
+    
+    // Make functions globally available
+    window.askQuestion = askQuestion;
+    window.clearConversationHistory = clearConversationHistory;
+    window.handleSearch = handleSearch;
 });
 
-console.log('Document-focused Federated Search Application Loaded - Ready to find relevant documents across chunking strategies!');
+console.log('Conversational Document Search Application Loaded - Ask questions to find relevant content across chunking strategies!');

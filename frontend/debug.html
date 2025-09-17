@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conversational Search Debug</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .debug-info { background: #f0f0f0; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .error { background: #ffe6e6; border: 1px solid #ff9999; }
+        .success { background: #e6ffe6; border: 1px solid #99ff99; }
+        .test-button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>Conversational Search Debug Page</h1>
+    
+    <div class="debug-info">
+        <h3>Loading Status</h3>
+        <div id="loading-status">Checking dependencies...</div>
+    </div>
+    
+    <div class="debug-info">
+        <h3>Connection Test</h3>
+        <button class="test-button" onclick="testTypesenseConnection()">Test Typesense Connection</button>
+        <div id="connection-status">Not tested</div>
+    </div>
+    
+    <div class="debug-info">
+        <h3>Collections Test</h3>
+        <button class="test-button" onclick="testCollections()">Test Collections</button>
+        <div id="collections-status">Not tested</div>
+    </div>
+    
+    <div class="debug-info">
+        <h3>Simple Search Test</h3>
+        <input type="text" id="test-query" placeholder="Enter search query" value="backtracking">
+        <button class="test-button" onclick="testSearch()">Test Search</button>
+        <div id="search-status">Not tested</div>
+    </div>
+
+    <!-- InstantSearch.js -->
+    <script src="https://cdn.jsdelivr.net/npm/instantsearch.js@4.63.0/dist/instantsearch.production.min.js"></script>
+    <!-- Typesense InstantSearch Adapter -->
+    <script src="https://cdn.jsdelivr.net/npm/typesense-instantsearch-adapter@2.8.0/dist/typesense-instantsearch-adapter.min.js"></script>
+
+    <script>
+        // Check if dependencies loaded
+        function checkDependencies() {
+            const loadingStatus = document.getElementById('loading-status');
+            let status = '';
+            
+            if (typeof instantsearch !== 'undefined') {
+                status += '✅ InstantSearch.js loaded<br>';
+            } else {
+                status += '❌ InstantSearch.js NOT loaded<br>';
+            }
+            
+            if (typeof TypesenseInstantSearchAdapter !== 'undefined') {
+                status += '✅ Typesense adapter loaded<br>';
+            } else {
+                status += '❌ Typesense adapter NOT loaded<br>';
+            }
+            
+            loadingStatus.innerHTML = status;
+        }
+
+        // Test Typesense connection
+        async function testTypesenseConnection() {
+            const statusDiv = document.getElementById('connection-status');
+            statusDiv.innerHTML = 'Testing connection...';
+            
+            try {
+                const response = await fetch('http://localhost:8108/health');
+                if (response.ok) {
+                    statusDiv.innerHTML = '<div class="success">✅ Typesense is running and accessible</div>';
+                } else {
+                    statusDiv.innerHTML = '<div class="error">❌ Typesense responded with error: ' + response.status + '</div>';
+                }
+            } catch (error) {
+                statusDiv.innerHTML = '<div class="error">❌ Cannot connect to Typesense: ' + error.message + '<br>Make sure Typesense is running on localhost:8108</div>';
+            }
+        }
+
+        // Test collections
+        async function testCollections() {
+            const statusDiv = document.getElementById('collections-status');
+            statusDiv.innerHTML = 'Testing collections...';
+            
+            try {
+                const response = await fetch('http://localhost:8108/collections', {
+                    headers: {
+                        'X-TYPESENSE-API-KEY': 'xyz'
+                    }
+                });
+                
+                if (response.ok) {
+                    const collections = await response.json();
+                    let html = '<div class="success">✅ Collections endpoint accessible<br>';
+                    
+                    const expectedCollections = [
+                        'unstructured_fixed_size',
+                        'unstructured_semantic', 
+                        'unstructured_sliding_langchain',
+                        'unstructured_sliding_unstructured'
+                    ];
+                    
+                    expectedCollections.forEach(name => {
+                        const found = collections.find(c => c.name === name);
+                        if (found) {
+                            html += `✅ ${name} (${found.num_documents} docs)<br>`;
+                        } else {
+                            html += `❌ ${name} NOT FOUND<br>`;
+                        }
+                    });
+                    
+                    html += '</div>';
+                    statusDiv.innerHTML = html;
+                } else {
+                    statusDiv.innerHTML = '<div class="error">❌ Collections endpoint error: ' + response.status + '</div>';
+                }
+            } catch (error) {
+                statusDiv.innerHTML = '<div class="error">❌ Collections test failed: ' + error.message + '</div>';
+            }
+        }
+
+        // Test simple search
+        async function testSearch() {
+            const statusDiv = document.getElementById('search-status');
+            const query = document.getElementById('test-query').value;
+            statusDiv.innerHTML = 'Testing search...';
+            
+            try {
+                const adapter = new TypesenseInstantSearchAdapter({
+                    server: {
+                        apiKey: "xyz",
+                        nodes: [{ host: "localhost", port: "8108", protocol: "http" }]
+                    }
+                });
+
+                const results = await adapter.searchClient.search([{
+                    indexName: 'unstructured_fixed_size',
+                    params: {
+                        query: query,
+                        hitsPerPage: 3
+                    }
+                }]);
+
+                if (results && results.results && results.results[0]) {
+                    const hits = results.results[0].hits;
+                    let html = `<div class="success">✅ Search successful!<br>`;
+                    html += `Query: "${query}"<br>`;
+                    html += `Results: ${hits.length} hits<br>`;
+                    if (hits.length > 0) {
+                        html += `First result: ${hits[0].document_title || 'No title'}<br>`;
+                    }
+                    html += '</div>';
+                    statusDiv.innerHTML = html;
+                } else {
+                    statusDiv.innerHTML = '<div class="error">❌ Search returned unexpected format</div>';
+                }
+            } catch (error) {
+                statusDiv.innerHTML = '<div class="error">❌ Search failed: ' + error.message + '</div>';
+            }
+        }
+
+        // Run checks on load
+        window.addEventListener('load', () => {
+            setTimeout(checkDependencies, 100);
+        });
+    </script>
+</body>
+</html>
