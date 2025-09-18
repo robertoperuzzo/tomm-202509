@@ -73,12 +73,19 @@ class SemanticChunker(ChunkingStrategy):
                 from sentence_transformers import SentenceTransformer
                 self._embedder = SentenceTransformer(self.embedding_model)
                 logger.info(f"Loaded embedding model: {self.embedding_model}")
-            except ImportError:
-                logger.warning(
-                    "sentence-transformers not available, "
-                    "falling back to text-based chunking"
+            except ImportError as exc:
+                logger.error(
+                    "sentence-transformers library is not available. "
+                    "This strategy requires sentence-transformers to be "
+                    "installed."
                 )
-                self._embedder = "fallback"
+                raise ChunkingError(
+                    "sentence-transformers library is not available. "
+                    "This strategy requires sentence-transformers to be "
+                    "installed.",
+                    strategy_name=self.strategy_name,
+                    document_id="unknown"
+                ) from exc
         return self._embedder
 
     def chunk_document(
@@ -113,17 +120,11 @@ class SemanticChunker(ChunkingStrategy):
                 return []
 
             # Check if we can use semantic analysis
-            if self.embedder == "fallback":
-                return self._fallback_chunking(document, text)
+            # This will raise an exception if dependencies are not available
+            _ = self.embedder
 
             # Try semantic chunking with LangChain's SemanticChunker
-            try:
-                chunks = self._semantic_split_text(text)
-            except Exception as e:
-                logger.warning(
-                    f"Semantic chunking failed: {e}, using fallback"
-                )
-                return self._fallback_chunking(document, text)
+            chunks = self._semantic_split_text(text, document.document_id)
 
             # Create DocumentChunk objects
             document_chunks = []
@@ -148,11 +149,12 @@ class SemanticChunker(ChunkingStrategy):
                 document_id=document.document_id
             )
 
-    def _semantic_split_text(self, text: str) -> List[str]:
+    def _semantic_split_text(self, text: str, document_id: str) -> List[str]:
         """Split text using semantic analysis.
 
         Args:
             text: Text to split
+            document_id: Document ID for error reporting
 
         Returns:
             List of text chunks
@@ -187,11 +189,19 @@ class SemanticChunker(ChunkingStrategy):
 
             return [chunk for chunk in filtered_chunks if chunk.strip()]
 
-        except ImportError:
-            logger.warning(
-                "LangChain experimental SemanticChunker not available"
+        except ImportError as exc:
+            logger.error(
+                "LangChain experimental SemanticChunker is not available. "
+                "This strategy requires langchain-experimental to be "
+                "installed."
             )
-            return self._manual_semantic_split(text)
+            raise ChunkingError(
+                "LangChain experimental SemanticChunker is not available. "
+                "This strategy requires langchain-experimental to be "
+                "installed.",
+                strategy_name=self.strategy_name,
+                document_id=document_id
+            ) from exc
 
     def _get_langchain_embeddings(self):
         """Get LangChain-compatible embeddings wrapper."""
@@ -212,54 +222,6 @@ class SemanticChunker(ChunkingStrategy):
                 logger.warning("LangChain embeddings not available")
                 raise
 
-    def _manual_semantic_split(self, text: str) -> List[str]:
-        """Manual semantic splitting using sentence similarity.
-
-        Args:
-            text: Text to split
-
-        Returns:
-            List of text chunks
-        """
-        # Split into sentences
-        sentences = self._split_into_sentences(text)
-
-        if len(sentences) <= 1:
-            return [text]
-
-        # Calculate sentence embeddings
-        try:
-            embeddings = self.embedder.encode(
-                sentences, batch_size=self.batch_size
-            )
-        except Exception as e:
-            logger.warning(f"Failed to compute embeddings: {e}")
-            return self._fallback_sentence_split(sentences)
-
-        # Find semantic breakpoints
-        breakpoints = self._find_semantic_breakpoints(embeddings)
-
-        # Create chunks from breakpoints
-        chunks = []
-        start_idx = 0
-
-        for breakpoint in breakpoints:
-            chunk_sentences = sentences[start_idx:breakpoint]
-            chunk_text = ' '.join(chunk_sentences)
-
-            if chunk_text.strip():
-                chunks.append(chunk_text)
-
-            start_idx = breakpoint
-
-        # Add final chunk
-        if start_idx < len(sentences):
-            final_chunk = ' '.join(sentences[start_idx:])
-            if final_chunk.strip():
-                chunks.append(final_chunk)
-
-        return chunks
-
     def _split_into_sentences(self, text: str) -> List[str]:
         """Split text into sentences.
 
@@ -275,33 +237,8 @@ class SemanticChunker(ChunkingStrategy):
         sentences = re.split(r'[.!?]+\s+', text)
         return [sent.strip() for sent in sentences if sent.strip()]
 
-    def _find_semantic_breakpoints(self, embeddings) -> List[int]:
-        """Find semantic breakpoints based on embedding similarity.
-
-        Args:
-            embeddings: Sentence embeddings array
-
-        Returns:
-            List of breakpoint indices
-        """
-        from sklearn.metrics.pairwise import cosine_similarity
-
-        breakpoints = []
-
-        for i in range(1, len(embeddings)):
-            # Calculate similarity between consecutive sentences
-            sim = cosine_similarity(
-                [embeddings[i-1]], [embeddings[i]]
-            )[0][0]
-
-            # If similarity drops below threshold, it's a breakpoint
-            if sim < self.similarity_threshold:
-                breakpoints.append(i)
-
-        return breakpoints
-
-    def _fallback_sentence_split(self, sentences: List[str]) -> List[str]:
-        """Fallback sentence-based splitting without embeddings.
+    def _split_by_sentence_size(self, sentences: List[str]) -> List[str]:
+        """Split sentences into chunks based on size constraints.
 
         Args:
             sentences: List of sentences
@@ -344,40 +281,7 @@ class SemanticChunker(ChunkingStrategy):
             List of smaller chunks
         """
         sentences = self._split_into_sentences(chunk)
-        return self._fallback_sentence_split(sentences)
-
-    def _fallback_chunking(
-        self, document: ProcessedDocument, text: str
-    ) -> List[DocumentChunk]:
-        """Fallback to structure-based chunking.
-
-        Args:
-            document: The document to chunk
-            text: Text content
-
-        Returns:
-            List of document chunks
-        """
-        from .sliding_langchain import SlidingLangChainChunker
-
-        # Use LangChain sliding window as fallback
-        fallback_config = {
-            'chunk_size': min(self.max_chunk_size, 1000),
-            'chunk_overlap': 200,
-            'separators': ["\n\n", "\n", ". ", " ", ""]
-        }
-
-        fallback_chunker = SlidingLangChainChunker(fallback_config)
-        chunks = fallback_chunker.chunk_document(document)
-
-        # Update strategy name for consistency
-        for chunk in chunks:
-            chunk.strategy_name = self.strategy_name
-            chunk.chunk_id = self.generate_chunk_id(
-                document.document_id, chunks.index(chunk)
-            )
-
-        return chunks
+        return self._split_by_sentence_size(sentences)
 
     def _create_document_chunk(
         self,

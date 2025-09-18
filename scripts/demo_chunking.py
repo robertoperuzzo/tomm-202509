@@ -262,6 +262,14 @@ def load_preprocessed_document(file_path: Path) -> ProcessedDocument:
             raise ValueError(
                 f"Document content too short: {len(text_content)} characters")
 
+        # Extract elements if available (for unstructured processing)
+        elements = None
+        if ('method_specific_data' in data and
+                'elements' in data['method_specific_data']):
+            elements = data['method_specific_data']['elements']
+        elif 'elements' in data:
+            elements = data['elements']
+
         # Create ProcessedDocument
         doc = ProcessedDocument(
             document_id=doc_id,
@@ -269,6 +277,7 @@ def load_preprocessed_document(file_path: Path) -> ProcessedDocument:
             authors=[],  # Empty list as default
             abstract='',  # Empty string as default
             full_text=text_content,
+            elements=elements,
             metadata={
                 'source_file': str(file_path),
                 'preprocessing_method': file_path.parent.name,
@@ -304,6 +313,19 @@ def find_available_files(data_dir: Path,
     return sorted(available_files, key=lambda x: x.stat().st_mtime, reverse=True)
 
 
+def is_strategy_compatible(strategy_name: str,
+                           document: ProcessedDocument) -> bool:
+    """Check if strategy is compatible with document's preprocessing method."""
+    preprocessing_method = document.metadata.get('preprocessing_method', '')
+
+    # sliding_unstructured requires documents processed with unstructured
+    if strategy_name == 'sliding_unstructured':
+        return preprocessing_method == 'unstructured'
+
+    # All other strategies work with any preprocessing method
+    return True
+
+
 def process_single_combination(document: ProcessedDocument,
                                strategy_name: str,
                                strategy_config: Dict[str, Any],
@@ -328,6 +350,12 @@ def process_single_combination(document: ProcessedDocument,
 
         if not result:
             raise ValueError(f"No results for strategy {strategy_name}")
+
+        # Check if the strategy failed due to missing dependencies
+        if not result.success:
+            raise ValueError(
+                f"Strategy {strategy_name} failed: {result.error_message}"
+            )
 
         # Get performance metrics
         metrics = monitor.get_metrics()
@@ -804,25 +832,29 @@ def main():
 
         # Configure chunking strategies
         strategies_config = {
-            'fixed_size': {
-                'chunk_size': 512,
-                'chunk_overlap': 0
+            "fixed_size": {
+                "chunk_size": 1000,
+                "chars_per_token": 4.0
             },
-            'sliding_langchain': {
-                'chunk_size': 1000,
-                'chunk_overlap': 100,
-                'separators': ['\n\n', '\n', '.', ' ']
+            "sliding_langchain": {
+                "chunk_size": 1000,
+                "chunk_overlap": 80,
+                "separators": ["\n\n", "\n", " ", ""],
+                "keep_separator": False,
+                "is_separator_regex": False
             },
-            'sliding_unstructured': {
-                'max_characters': 800,
-                'overlap': 80,
-                'strategy': 'by_title'
+            "sliding_unstructured": {
+                "max_elements_per_chunk": 10,
+                "overlap_percentage": 0.2,
+                "priority_elements": ["Title", "Header", "NarrativeText"],
+                "respect_boundaries": True
             },
-            'semantic': {
-                'embedding_model': 'sentence-transformers/all-MiniLM-L6-v2',
-                'similarity_threshold': 0.8,
-                'min_chunk_size': 200,
-                'max_chunk_size': 1500
+            "semantic": {
+                "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+                "similarity_threshold": 0.8,
+                "min_chunk_size": 200,
+                "max_chunk_size": 2000,
+                "batch_size": 32
             }
         }
 
@@ -853,6 +885,12 @@ def main():
 
                 # Process each strategy
                 for strategy_name, strategy_config in strategies_config.items():
+                    # Check if strategy is compatible with document
+                    if not is_strategy_compatible(strategy_name, document):
+                        print(f"  - Strategy: {strategy_name} "
+                              f"(skipped - incompatible)")
+                        continue
+
                     print(f"  - Strategy: {strategy_name}")
                     total_combinations += 1
 
@@ -869,7 +907,7 @@ def main():
                 continue
 
         # Display summary
-        print(f"\n✅ PROCESSING COMPLETE")
+        print("\n✅ PROCESSING COMPLETE")
         print(f"Total combinations processed: {total_combinations}")
         print(f"Successful: {successful_combinations}")
         print(f"Failed: {total_combinations - successful_combinations}")
